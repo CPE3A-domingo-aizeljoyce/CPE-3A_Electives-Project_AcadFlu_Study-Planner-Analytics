@@ -71,11 +71,21 @@ function StatCard({ icon, label, value, sub, iconBg, colors }) {
 
 // ─── Dashboard page ───────────────────────────────────────────────────────────
 export function Dashboard() {
+  const [schedule, setSchedule] = useState(demoTasks); 
   const [chartPeriod, setChartPeriod] = useState('W');
   const { accent, colors, showStreak, showXPBar, compactMode } = useAppearance();
 
-  const lvl            = getLevelInfo(DEMO_XP);
-  const completedCount = demoTasks.filter(t => t.done).length;
+  const lvl = getLevelInfo(DEMO_XP);
+
+ 
+  const toggleTask = (taskId) => {
+    setSchedule(prev => prev.map(task => 
+      task.id === taskId ? { ...task, done: !task.done } : task
+    ));
+  };
+  
+  const completedCount = schedule.filter(t => t.done).length;
+  const totalTasks = schedule.length;
 
   // Weekly data
   const weeklyData = [
@@ -135,7 +145,7 @@ export function Dashboard() {
         <StatCard colors={colors} icon={<Clock       className="w-4 h-4 text-indigo-400" />} label="Today's Study Time"  value="2h 45m"                        sub="3 sessions today"                iconBg="rgba(99,102,241,0.15)"  />
         <StatCard colors={colors} icon={<TrendingUp  className="w-4 h-4 text-green-400"  />} label="Productivity Score"  value="87%"                           sub="Based on today's sessions"       iconBg="rgba(34,197,94,0.12)"   />
         <StatCard colors={colors} icon={<Flame       className="w-4 h-4 text-orange-400" />} label="Current Streak"      value={`${DEMO_STREAK} Days`}         sub="Personal best: 18 days"          iconBg="rgba(249,115,22,0.12)"  />
-        <StatCard colors={colors} icon={<CheckSquare className="w-4 h-4 text-purple-400" />} label="Tasks Completed"     value={`${completedCount}/${demoTasks.length}`} sub={`${demoTasks.length - completedCount} remaining today`} iconBg="rgba(139,92,246,0.12)" />
+        <StatCard colors={colors} icon={<CheckSquare className="w-4 h-4 text-purple-400" />} label="Tasks Completed" value={`${completedCount}/${totalTasks}`} sub={`${totalTasks - completedCount} remaining today`} iconBg="rgba(139,92,246,0.12)" />
       </div>
 
       {/* Main grid */}
@@ -197,15 +207,18 @@ export function Dashboard() {
             <a href="/app/tasks" className="text-xs flex items-center gap-1 transition-colors" style={{ fontWeight: 500, color: accent.main }}>
               View all <ChevronRight className="w-3 h-3" />
             </a>
-          </div>
           <div className="space-y-2.5">
-            {demoTasks.map(task => (
+            {schedule.map(task => (
               <div key={task.id} className="flex items-center gap-3 p-3 rounded-xl"
                 style={{ background: task.done ? `rgba(${accent.rgb},0.03)` : colors.card2, border: `1px solid ${colors.border}`, opacity: task.done ? 0.55 : 1 }}>
-                <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                
+                {/*onclick*/}
+                <div onClick={() => toggleTask(task.id)}
+                  className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 cursor-pointer hover:scale-110 transition-all"
                   style={{ background: task.done ? (SUBJECT_COLORS[task.subject] ?? accent.main) : 'transparent', border: `2px solid ${task.done ? (SUBJECT_COLORS[task.subject] ?? accent.main) : colors.border}` }}>
                   {task.done && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                 </div>
+
                 <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ background: SUBJECT_COLORS[task.subject] ?? accent.main, opacity: 0.7 }} />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm truncate" style={{ fontWeight: 500, color: colors.text, textDecoration: task.done ? 'line-through' : 'none' }}>{task.title}</div>
@@ -218,6 +231,8 @@ export function Dashboard() {
                     fontWeight: 500,
                   }}>{task.priority}</span>
               </div>
+            ))}
+          </div>
             ))}
           </div>
         </div>

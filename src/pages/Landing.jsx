@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router';
+import { useState } from 'react';
 
 import {
   Brain, Flame, Zap, Target, BarChart2, Trophy,
@@ -28,6 +29,7 @@ const stats = [
 ];
 
 export function Landing() {
+  const [activeLink, setActiveLink] = useState('');
   const navigate = useNavigate();
 
   return (
@@ -45,13 +47,31 @@ export function Landing() {
         </div>
 
         <div className="hidden md:flex items-center gap-8">
-          {['Features', 'How it works', 'Testimonials'].map(item => (
-            <a key={item} href={`#${item.toLowerCase().replace(/ /g, '-')}`}
-              className="text-slate-400 text-sm hover:text-slate-200 transition-colors" style={{ fontWeight: 500 }}>
-              {item}
-            </a>
-          ))}
-        </div>
+  {['Features', 'How it works', 'Testimonials'].map(item => {
+    const isActive = activeLink === item;
+    const targetId = item.toLowerCase().replace(/ /g, '-'); 
+
+    return (
+      <a 
+        key={item} 
+        href={`#${targetId}`}
+        onClick={(e) => {
+          e.preventDefault(); 
+          setActiveLink(item); 
+          
+
+          document.getElementById(targetId)?.scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }}
+        className={`text-sm transition-all duration-300 ${isActive ? 'text-white' : 'text-slate-400 hover:text-slate-200'}`} 
+        style={{ fontWeight: isActive ? 700 : 500 }}>
+        {item}
+      </a>
+    );
+  })}
+</div>
 
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/login')} className="px-4 py-2 rounded-xl text-sm text-slate-300 hover:text-white transition-colors" style={{ fontWeight: 500 }}>
@@ -230,7 +250,7 @@ export function Landing() {
 </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button onClick={() => navigate('/login?tab=signup')}
-              className ="flex items-center gap-2 px-8 py-3.5 rounded-2xl text-white text-sm transition-all hover:scale-105"
+              className="flex items-center gap-2 px-8 py-3.5 rounded-2xl text-white text-sm transition-all hover:scale-105"
               style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 0 30px rgba(99,102,241,0.4)', fontWeight: 600 }}>
               Create free account <ArrowRight className="w-4 h-4" />
             </button>
@@ -251,18 +271,16 @@ export function Landing() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="px-6 md:px-12 py-8" style={{ borderTop: '1px solid #1a2540' }}>
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-              <Brain className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-slate-400 text-sm" style={{ fontWeight: 600 }}>StudyFlow</span>
-          </div>
-          <div className="text-slate-600 text-xs">© 2026 StudyFlow. Built for learners.</div>
-        </div>
-      </footer>
+     {/* Footer */}
+<footer className="px-6 md:px-12 py-4" style={{ borderTop: '1px solid #1a2540' }}>
+  <div className="w-full flex items-center justify-start">
+    <div className="text-slate-500 text-[10px] md:text-xs text-left" style={{ lineHeight: '1.4' }}>
+      <p style={{ fontWeight: 500 }}>Developed by BS Computer Engineering Students</p>
+      <p>Bulacan State University</p>
+      <p>© 2026</p>
+    </div>
+  </div>
+</footer>
     </div>
   );
 }
