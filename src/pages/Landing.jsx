@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router';
+
 import {
   Brain, Flame, Zap, Target, BarChart2, Trophy,
   Timer, BookOpen, ArrowRight, CheckCircle2, Star,
@@ -141,11 +142,11 @@ export function Landing() {
 
       {/* Features */}
       <section id="features" className="px-6 md:px-12 mb-24">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <div className="text-xs mb-3" style={{ color: '#818cf8', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Everything you need</div>
-            <h2 className="text-3xl md:text-4xl text-white" style={{ fontWeight: 800, letterSpacing: '-0.8px' }}>Built for how students actually learn</h2>
-          </div>
+       <div className="max-w-5xl mx-auto">
+  <div className="text-center mb-12">
+    <div className="text-xs mb-3" style={{ color: '#4f46e5', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Everything you need</div>
+    <h2 className="text-3xl md:text-4xl" style={{ color: 'black', fontWeight: 800, letterSpacing: '-0.8px' }}>Built for how students actually learn</h2>
+  </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {features.map(f => (
               <div key={f.title} className="p-5 rounded-2xl group hover:scale-[1.02] transition-all duration-200" style={{ background: '#131929', border: '1px solid #1a2540' }}>
@@ -163,9 +164,9 @@ export function Landing() {
       {/* How it works */}
       <section id="how-it-works" className="px-6 md:px-12 mb-24">
         <div className="max-w-3xl mx-auto text-center">
-          <div className="text-xs mb-3" style={{ color: '#818cf8', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Simple to start</div>
-          <h2 className="text-3xl md:text-4xl text-white mb-12" style={{ fontWeight: 800, letterSpacing: '-0.8px' }}>Up and running in 60 seconds</h2>
-          <div className="flex flex-col gap-6">
+  <div className="text-xs mb-3" style={{ color: '#4f46e5', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Simple to start</div>
+  <h2 className="text-3xl md:text-4xl mb-12" style={{ color: 'black', fontWeight: 800, letterSpacing: '-0.8px' }}>Up and running in 60 seconds</h2>
+  <div className="flex flex-col gap-6">
             {[
               { step: '01', title: 'Create your account',       desc: 'Sign up for free — no credit card needed. Set your study subjects and weekly goals.',               color: '#6366f1' },
               { step: '02', title: 'Add tasks & start a timer', desc: 'Build your task list, pick what to work on, and hit start. The Pomodoro timer handles the rest.',  color: '#22c55e' },
@@ -186,10 +187,10 @@ export function Landing() {
       {/* Testimonials */}
       <section id="testimonials" className="px-6 md:px-12 mb-24">
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <div className="text-xs mb-3" style={{ color: '#818cf8', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Student love</div>
-            <h2 className="text-3xl md:text-4xl text-white" style={{ fontWeight: 800, letterSpacing: '-0.8px' }}>Real results, real students</h2>
-          </div>
+  <div className="text-center mb-12">
+    <div className="text-xs mb-3" style={{ color: '#4f46e5', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Student love</div>
+    <h2 className="text-3xl md:text-4xl mb-12" style={{ color: 'black', fontWeight: 800, letterSpacing: '-0.8px' }}>Real results, real students</h2>
+  </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {testimonials.map(t => (
               <div key={t.name} className="p-5 rounded-2xl flex flex-col gap-4" style={{ background: '#131929', border: '1px solid #1a2540' }}>
@@ -223,21 +224,21 @@ export function Landing() {
             style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 0 30px rgba(99,102,241,0.5)' }}>
             <Brain className="w-7 h-7 text-white" />
           </div>
-          <h2 className="text-3xl md:text-4xl text-white mb-4" style={{ fontWeight: 800, letterSpacing: '-0.8px' }}>Ready to level up?</h2>
-          <p className="text-slate-400 mb-8 max-w-md mx-auto" style={{ lineHeight: 1.7 }}>
-            Join 50,000+ students who've transformed their study habits with StudyFlow. It's completely free to start.
-          </p>
+          <h2 className="text-3xl md:text-4xl mb-4" style={{ color: 'black', fontWeight: 800, letterSpacing: '-0.8px' }}>Ready to level up?</h2>
+<p className="mb-8 max-w-md mx-auto" style={{ color: '#333333', lineHeight: 1.7 }}>
+   Join 50,000+ students who've transformed their study habits with StudyFlow. It's completely free to start.
+</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button onClick={() => navigate('/login?tab=signup')}
-              className="flex items-center gap-2 px-8 py-3.5 rounded-2xl text-white text-sm transition-all hover:scale-105"
+              className ="flex items-center gap-2 px-8 py-3.5 rounded-2xl text-white text-sm transition-all hover:scale-105"
               style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 0 30px rgba(99,102,241,0.4)', fontWeight: 600 }}>
               Create free account <ArrowRight className="w-4 h-4" />
             </button>
             <button onClick={() => navigate('/login')}
-              className="px-8 py-3.5 rounded-2xl text-slate-300 text-sm hover:text-white transition-all"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', fontWeight: 500 }}>
-              Already have an account
-            </button>
+      className="px-8 py-3.5 rounded-2xl text-sm transition-all hover:bg-gray-100"
+      style={{ color: '#475569', background: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.1)', fontWeight: 600 }}>
+      Already have an account
+</button>
           </div>
           <div className="flex items-center justify-center gap-6 mt-6">
             {['No credit card required', 'Free forever plan', 'Cancel anytime'].map(item => (
