@@ -59,10 +59,10 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen flex" style={{ background: '#0d1117', fontFamily: "'Inter', sans-serif" }}>
+    <div className="h-screen flex overflow-hidden" style={{ background: '#0d1117', fontFamily: "'Inter', sans-serif" }}>
 
       {/* Left panel (desktop only) */}
-      <div className="hidden lg:flex flex-col justify-between w-[420px] flex-shrink-0 p-10"
+      <div className="hidden lg:flex flex-col justify-between w-[420px] flex-shrink-0 p-10 overflow-y-auto"
         style={{ background: CARD2, borderRight: `1px solid ${BORDER}` }}>
         <div>
           <button onClick={() => navigate('/')} className="flex items-center gap-2.5 mb-16 group">
@@ -90,28 +90,18 @@ export function Login() {
               </div>
             ))}
           </div>
-
-          <div className="p-4 rounded-2xl" style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)' }}>
-            <p className="text-slate-400 text-sm mb-3" style={{ lineHeight: 1.6 }}>
-              "My GPA jumped a full point in one semester. The XP system made me actually <em>want</em> to study."
-            </p>
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs text-white"
-                style={{ fontWeight: 700, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-                SR
-              </div>
-              <div>
-                <div className="text-white text-xs" style={{ fontWeight: 600 }}>Sofia R.</div>
-                <div className="text-slate-600 text-xs">Medical Student</div>
-              </div>
-            </div>
-          </div>
         </div>
-        <div className="text-slate-700 text-xs">© 2026 StudyFlow · Built for learners</div>
+        <div className="text-slate-700 text-xs"
+          style={{ lineHeight: 1.6, textAlign: 'center' }}>
+          © 2026 StudyFlow · Built for learners<br />
+          Developed by BS Computer Engineering Students<br />
+          Bulacan State University
+        </div>
       </div>
 
       {/* Right panel (form) */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 relative">
+      <div className="flex-1 flex flex-col items-center px-6 py-12 relative overflow-y-auto">
+        <div style={{ flex: '1 0 auto' }} />
         <button onClick={() => navigate('/')} className="lg:hidden flex items-center gap-2 mb-8">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
             <Brain className="w-4 h-4 text-white" />
@@ -254,6 +244,7 @@ export function Login() {
             </form>
           )}
         </div>
+        <div style={{ flex: '1 0 auto' }} />
       </div>
     </div>
   );

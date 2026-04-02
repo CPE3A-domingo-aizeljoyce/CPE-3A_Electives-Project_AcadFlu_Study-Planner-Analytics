@@ -1,9 +1,7 @@
 import { useNavigate } from 'react-router';
-import { useState } from 'react';
-
 import {
   Brain, Flame, Zap, Target, BarChart2, Trophy,
-  Timer, BookOpen, ArrowRight, CheckCircle2, Star,
+  Timer, BookOpen, ArrowRight, CheckCircle2,
 } from 'lucide-react';
 
 const features = [
@@ -15,12 +13,6 @@ const features = [
   { icon: Flame,    color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   title: 'Streak System',   desc: 'Daily streaks and habit tracking keep you accountable and motivated.' },
 ];
 
-const testimonials = [
-  { name: 'Sofia R.',  role: 'Medical Student', text: "My GPA went from 3.2 to 3.8 in one semester using StudyFlow. The streak system is addictive in the best way.", avatar: 'SR', color: '#6366f1' },
-  { name: 'James K.',  role: 'CS Undergrad',    text: "Finally a study app that doesn't feel like a chore. The pomodoro timer + XP system made me look forward to studying.", avatar: 'JK', color: '#22c55e' },
-  { name: 'Priya M.',  role: 'Law Student',     text: "The analytics alone are worth it. Knowing exactly when I'm most productive has changed how I schedule my revision.", avatar: 'PM', color: '#f97316' },
-];
-
 const stats = [
   { value: '50K+', label: 'Active Students' },
   { value: '4.9★', label: 'Average Rating'  },
@@ -29,7 +21,6 @@ const stats = [
 ];
 
 export function Landing() {
-  const [activeLink, setActiveLink] = useState('');
   const navigate = useNavigate();
 
   return (
@@ -47,31 +38,13 @@ export function Landing() {
         </div>
 
         <div className="hidden md:flex items-center gap-8">
-  {['Features', 'How it works', 'Testimonials'].map(item => {
-    const isActive = activeLink === item;
-    const targetId = item.toLowerCase().replace(/ /g, '-'); 
-
-    return (
-      <a 
-        key={item} 
-        href={`#${targetId}`}
-        onClick={(e) => {
-          e.preventDefault(); 
-          setActiveLink(item); 
-          
-
-          document.getElementById(targetId)?.scrollIntoView({ 
-            behavior: 'smooth',
-            block: 'start'
-          });
-        }}
-        className={`text-sm transition-all duration-300 ${isActive ? 'text-white' : 'text-slate-400 hover:text-slate-200'}`} 
-        style={{ fontWeight: isActive ? 700 : 500 }}>
-        {item}
-      </a>
-    );
-  })}
-</div>
+          {['Features', 'How it works'].map(item => (
+            <a key={item} href={`#${item.toLowerCase().replace(/ /g, '-')}`}
+              className="text-slate-400 text-sm hover:text-slate-200 transition-colors" style={{ fontWeight: 500 }}>
+              {item}
+            </a>
+          ))}
+        </div>
 
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/login')} className="px-4 py-2 rounded-xl text-sm text-slate-300 hover:text-white transition-colors" style={{ fontWeight: 500 }}>
@@ -162,11 +135,11 @@ export function Landing() {
 
       {/* Features */}
       <section id="features" className="px-6 md:px-12 mb-24">
-       <div className="max-w-5xl mx-auto">
-  <div className="text-center mb-12">
-    <div className="text-xs mb-3" style={{ color: '#4f46e5', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Everything you need</div>
-    <h2 className="text-3xl md:text-4xl" style={{ color: 'black', fontWeight: 800, letterSpacing: '-0.8px' }}>Built for how students actually learn</h2>
-  </div>
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="text-xs mb-3" style={{ color: '#818cf8', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Everything you need</div>
+            <h2 className="text-3xl md:text-4xl text-white" style={{ fontWeight: 800, letterSpacing: '-0.8px' }}>Built for how students actually learn</h2>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {features.map(f => (
               <div key={f.title} className="p-5 rounded-2xl group hover:scale-[1.02] transition-all duration-200" style={{ background: '#131929', border: '1px solid #1a2540' }}>
@@ -184,9 +157,9 @@ export function Landing() {
       {/* How it works */}
       <section id="how-it-works" className="px-6 md:px-12 mb-24">
         <div className="max-w-3xl mx-auto text-center">
-  <div className="text-xs mb-3" style={{ color: '#4f46e5', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Simple to start</div>
-  <h2 className="text-3xl md:text-4xl mb-12" style={{ color: 'black', fontWeight: 800, letterSpacing: '-0.8px' }}>Up and running in 60 seconds</h2>
-  <div className="flex flex-col gap-6">
+          <div className="text-xs mb-3" style={{ color: '#818cf8', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Simple to start</div>
+          <h2 className="text-3xl md:text-4xl text-white mb-12" style={{ fontWeight: 800, letterSpacing: '-0.8px' }}>Up and running in 60 seconds</h2>
+          <div className="flex flex-col gap-6">
             {[
               { step: '01', title: 'Create your account',       desc: 'Sign up for free — no credit card needed. Set your study subjects and weekly goals.',               color: '#6366f1' },
               { step: '02', title: 'Add tasks & start a timer', desc: 'Build your task list, pick what to work on, and hit start. The Pomodoro timer handles the rest.',  color: '#22c55e' },
@@ -204,38 +177,6 @@ export function Landing() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section id="testimonials" className="px-6 md:px-12 mb-24">
-        <div className="max-w-5xl mx-auto">
-  <div className="text-center mb-12">
-    <div className="text-xs mb-3" style={{ color: '#4f46e5', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Student love</div>
-    <h2 className="text-3xl md:text-4xl mb-12" style={{ color: 'black', fontWeight: 800, letterSpacing: '-0.8px' }}>Real results, real students</h2>
-  </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {testimonials.map(t => (
-              <div key={t.name} className="p-5 rounded-2xl flex flex-col gap-4" style={{ background: '#131929', border: '1px solid #1a2540' }}>
-                <div className="flex gap-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className="w-3.5 h-3.5 fill-current" style={{ color: '#f59e0b' }} />
-                  ))}
-                </div>
-                <p className="text-slate-400 text-sm" style={{ lineHeight: 1.7 }}>"{t.text}"</p>
-                <div className="flex items-center gap-3 mt-auto">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs text-white flex-shrink-0"
-                    style={{ fontWeight: 700, background: `linear-gradient(135deg, ${t.color}, ${t.color}99)` }}>
-                    {t.avatar}
-                  </div>
-                  <div>
-                    <div className="text-white text-xs" style={{ fontWeight: 600 }}>{t.name}</div>
-                    <div className="text-slate-500 text-xs">{t.role}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* CTA */}
       <section className="px-6 md:px-12 mb-24">
         <div className="max-w-3xl mx-auto rounded-3xl p-12 text-center relative overflow-hidden"
@@ -244,10 +185,10 @@ export function Landing() {
             style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 0 30px rgba(99,102,241,0.5)' }}>
             <Brain className="w-7 h-7 text-white" />
           </div>
-          <h2 className="text-3xl md:text-4xl mb-4" style={{ color: 'black', fontWeight: 800, letterSpacing: '-0.8px' }}>Ready to level up?</h2>
-<p className="mb-8 max-w-md mx-auto" style={{ color: '#333333', lineHeight: 1.7 }}>
-   Join 50,000+ students who've transformed their study habits with StudyFlow. It's completely free to start.
-</p>
+          <h2 className="text-3xl md:text-4xl text-white mb-4" style={{ fontWeight: 800, letterSpacing: '-0.8px' }}>Ready to level up?</h2>
+          <p className="text-slate-400 mb-8 max-w-md mx-auto" style={{ lineHeight: 1.7 }}>
+            Join 50,000+ students who've transformed their study habits with StudyFlow. It's completely free to start.
+          </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button onClick={() => navigate('/login?tab=signup')}
               className="flex items-center gap-2 px-8 py-3.5 rounded-2xl text-white text-sm transition-all hover:scale-105"
@@ -255,10 +196,10 @@ export function Landing() {
               Create free account <ArrowRight className="w-4 h-4" />
             </button>
             <button onClick={() => navigate('/login')}
-      className="px-8 py-3.5 rounded-2xl text-sm transition-all hover:bg-gray-100"
-      style={{ color: '#475569', background: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.1)', fontWeight: 600 }}>
-      Already have an account
-</button>
+              className="px-8 py-3.5 rounded-2xl text-slate-300 text-sm hover:text-white transition-all"
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', fontWeight: 500 }}>
+              Already have an account
+            </button>
           </div>
           <div className="flex items-center justify-center gap-6 mt-6">
             {['No credit card required', 'Free forever plan', 'Cancel anytime'].map(item => (
@@ -271,16 +212,22 @@ export function Landing() {
         </div>
       </section>
 
-     {/* Footer */}
-<footer className="px-6 md:px-12 py-4" style={{ borderTop: '1px solid #1a2540' }}>
-  <div className="w-full flex items-center justify-start">
-    <div className="text-slate-500 text-[10px] md:text-xs text-left" style={{ lineHeight: '1.4' }}>
-      <p style={{ fontWeight: 500 }}>Developed by BS Computer Engineering Students</p>
-      <p>Bulacan State University</p>
-      <p>© 2026</p>
-    </div>
-  </div>
-</footer>
+      {/* Footer */}
+      <footer className="px-6 md:px-12 py-8" style={{ borderTop: '1px solid #1a2540' }}>
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+              <Brain className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-slate-400 text-sm" style={{ fontWeight: 600 }}>StudyFlow</span>
+          </div>
+          <div className="text-slate-600 text-xs" style={{ lineHeight: 1.6, textAlign: 'center' }}>
+            © 2026 StudyFlow. Built for learners.<br />
+            Developed by BS Computer Engineering Students<br />
+            Bulacan State University
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
