@@ -19,7 +19,7 @@ const PRIORITY = {
   low:    { bg: 'rgba(100,116,139,0.13)', color: '#94a3b8', label: 'Low'    },
 };
 
-const MONTHS    = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS     = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAYS_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 const TODAY = new Date().toISOString().split('T')[0];
@@ -37,17 +37,17 @@ function offsetDate(days) {
 
 const SEED_TASKS = [
   { id: 1,  title: 'Calculus – Chapter 5: Integration',    subject: 'Mathematics',      date: TODAY,           startTime: '09:00', endTime: '11:00', priority: 'high',   done: false },
-  { id: 2,  title: 'Read Physics textbook Ch. 12',          subject: 'Physics',          date: TODAY,           startTime: '11:30', endTime: '13:00', priority: 'medium', done: true  },
-  { id: 3,  title: 'Chemistry – reaction equations',        subject: 'Chemistry',        date: TODAY,           startTime: '14:00', endTime: '15:30', priority: 'high',   done: false },
-  { id: 4,  title: 'English essay draft – Climate Change',  subject: 'English',          date: TODAY,           startTime: '16:00', endTime: '17:30', priority: 'low',    done: false },
-  { id: 5,  title: 'Biology lab report write-up',           subject: 'Biology',          date: offsetDate(1),   startTime: '18:00', endTime: '19:00', priority: 'medium', done: false },
-  { id: 6,  title: 'History – WWII analysis essay',         subject: 'History',          date: offsetDate(1),   startTime: '10:00', endTime: '12:00', priority: 'medium', done: false },
-  { id: 7,  title: 'Algorithm practice – sorting',          subject: 'Computer Science', date: offsetDate(3),   startTime: '14:00', endTime: '16:00', priority: 'high',   done: false },
-  { id: 8,  title: 'Biology quiz review',                   subject: 'Biology',          date: offsetDate(5),   startTime: '09:00', endTime: '10:30', priority: 'high',   done: false },
-  { id: 9,  title: 'Calculus – Chapter 6: Derivatives',     subject: 'Mathematics',      date: offsetDate(7),   startTime: '10:00', endTime: '12:00', priority: 'high',   done: false },
-  { id: 10, title: 'English vocabulary test prep',          subject: 'English',          date: offsetDate(8),   startTime: '13:00', endTime: '14:00', priority: 'low',    done: false },
-  { id: 11, title: 'CS – Binary Trees lecture notes',       subject: 'Computer Science', date: offsetDate(9),   startTime: '15:00', endTime: '17:00', priority: 'medium', done: false },
-  { id: 12, title: 'Physics – Thermodynamics problems',     subject: 'Physics',          date: offsetDate(11),  startTime: '09:00', endTime: '11:00', priority: 'high',   done: false },
+  { id: 2,  title: 'Read Physics textbook Ch. 12',         subject: 'Physics',          date: TODAY,           startTime: '11:30', endTime: '13:00', priority: 'medium', done: true  },
+  { id: 3,  title: 'Chemistry – reaction equations',       subject: 'Chemistry',        date: TODAY,           startTime: '14:00', endTime: '15:30', priority: 'high',   done: false },
+  { id: 4,  title: 'English essay draft – Climate Change', subject: 'English',          date: TODAY,           startTime: '16:00', endTime: '17:30', priority: 'low',    done: false },
+  { id: 5,  title: 'Biology lab report write-up',          subject: 'Biology',          date: offsetDate(1),   startTime: '18:00', endTime: '19:00', priority: 'medium', done: false },
+  { id: 6,  title: 'History – WWII analysis essay',        subject: 'History',          date: offsetDate(1),   startTime: '10:00', endTime: '12:00', priority: 'medium', done: false },
+  { id: 7,  title: 'Algorithm practice – sorting',         subject: 'Computer Science', date: offsetDate(3),   startTime: '14:00', endTime: '16:00', priority: 'high',   done: false },
+  { id: 8,  title: 'Biology quiz review',                  subject: 'Biology',          date: offsetDate(5),   startTime: '09:00', endTime: '10:30', priority: 'high',   done: false },
+  { id: 9,  title: 'Calculus – Chapter 6: Derivatives',    subject: 'Mathematics',      date: offsetDate(7),   startTime: '10:00', endTime: '12:00', priority: 'high',   done: false },
+  { id: 10, title: 'English vocabulary test prep',         subject: 'English',          date: offsetDate(8),   startTime: '13:00', endTime: '14:00', priority: 'low',    done: false },
+  { id: 11, title: 'CS – Binary Trees lecture notes',      subject: 'Computer Science', date: offsetDate(9),   startTime: '15:00', endTime: '17:00', priority: 'medium', done: false },
+  { id: 12, title: 'Physics – Thermodynamics problems',    subject: 'Physics',          date: offsetDate(11),  startTime: '09:00', endTime: '11:00', priority: 'high',   done: false },
 ];
 
 // ─── Small UI pieces ──────────────────────────────────────────────────────────
@@ -61,7 +61,8 @@ function PriorityBadge({ p }) {
 }
 
 function SubjectPill({ subject }) {
-  const color = SUBJECT_COLOR[subject] || '#6366f1';
+  const { accent } = useAppearance();
+  const color = SUBJECT_COLOR[subject] || accent.main; 
   return (
     <span className="rounded-md px-2 py-0.5 text-xs shrink-0" style={{ background: `${color}20`, color, fontWeight: 500 }}>
       {subject}
@@ -69,31 +70,38 @@ function SubjectPill({ subject }) {
   );
 }
 
+// NILABAS NATIN ANG FIELD DITO PARA HINDI MAG-RE-RENDER AT MAWALA ANG FOCUS
+function Field({ label, children }) {
+  const { colors } = useAppearance();
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs" style={{ color: colors.textMuted, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
 // ─── Add Task Modal ───────────────────────────────────────────────────────────
 function AddTaskForm({ defaultDate, onAdd, onClose }) {
   const [form, setForm] = useState({ title: '', subject: 'Mathematics', date: defaultDate, startTime: '09:00', endTime: '10:00', priority: 'medium' });
-  const [error, setError]   = useState('');
-  const titleRef            = useRef(null);
-  const { colors, accent }  = useAppearance();
+  const [error, setError] = useState('');
+  const [customSubject, setCustomSubject] = useState(''); // State para sa Others
+  const titleRef = useRef(null);
+  const { colors, accent } = useAppearance();
 
   useEffect(() => { titleRef.current?.focus(); }, []);
 
   const submit = () => {
     if (!form.title.trim()) { setError('Please enter a task title.'); return; }
-    onAdd(form); onClose();
+    
+    // Tama na ang logic dito, hindi na dodoble
+    const finalSubject = form.subject === 'Others' ? customSubject.trim() : form.subject;
+    onAdd({ ...form, subject: finalSubject || 'Others' }); 
+    onClose();
   };
-
+  
   const inputStyle = { background: colors.card2, border: `1px solid ${colors.border}`, color: colors.text, colorScheme: colors.inputScheme };
   const cls = "w-full rounded-xl px-3.5 py-2.5 text-sm outline-none";
-
-  function Field({ label, children }) {
-    return (
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs" style={{ color: colors.textMuted, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{label}</label>
-        {children}
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -119,9 +127,20 @@ function AddTaskForm({ defaultDate, onAdd, onClose }) {
           </Field>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Subject">
-              <select className={cls} style={inputStyle} value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}>
+              <select className={cls} style={inputStyle} value={form.subject} 
+                onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}>
                 {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="Others">Others...</option> 
               </select>
+              {form.subject === 'Others' && (
+                <input 
+                  className={`${cls} mt-2`} 
+                  style={inputStyle} 
+                  placeholder="Type subject name..." 
+                  value={customSubject} 
+                  onChange={e => setCustomSubject(e.target.value)} 
+                />
+              )}
             </Field>
             <Field label="Priority">
               <select className={cls} style={inputStyle} value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
@@ -160,8 +179,8 @@ function AddTaskForm({ defaultDate, onAdd, onClose }) {
 
 // ─── Task Row (list view) ─────────────────────────────────────────────────────
 function TaskRow({ task, onToggle, onRemove }) {
-  const color = SUBJECT_COLOR[task.subject] || '#6366f1';
-  const { colors } = useAppearance();
+  const { colors, accent } = useAppearance();
+  const color = SUBJECT_COLOR[task.subject] || accent.main;
   return (
     <div className="flex items-center gap-3 px-4 py-3 rounded-2xl group transition-all"
       style={{ background: colors.card, border: `1px solid ${colors.border}`, opacity: task.done ? 0.5 : 1 }}>
@@ -272,7 +291,6 @@ function CalendarView({ tasks, onToggle, onRemove, onAddForDate }) {
         </div>
       </div>
 
-      {/* Day panel */}
       <div className="w-full xl:w-80 shrink-0 rounded-2xl flex flex-col" style={{ background: colors.card, border: `1px solid ${colors.border}`, maxHeight: 520 }}>
         <div className="px-4 py-3 flex items-start justify-between gap-3 shrink-0" style={{ borderBottom: `1px solid ${colors.border}` }}>
           <div>
@@ -375,14 +393,12 @@ export function Tasks() {
     <div className="min-h-full flex flex-col gap-4" style={{ background: colors.bg, padding: '1rem' }}>
       {showForm && <AddTaskForm defaultDate={formDate} onAdd={addTask} onClose={() => setShowForm(false)} />}
 
-      {/* Header row: title + action buttons */}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.5px', lineHeight: 1.3, color: colors.text }}>Task Scheduler</h1>
           <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{completed} of {total} tasks · {pct}% done</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {/* View toggle */}
           <div className="flex items-center p-1 gap-0.5 rounded-xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
             {[
               { v: 'list',     icon: <List className="w-3.5 h-3.5" />,       label: 'List'     },
@@ -398,7 +414,6 @@ export function Tasks() {
               </button>
             ))}
           </div>
-          {/* New task button */}
           <button onClick={() => openFormFor(TODAY)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-sm hover:opacity-90 active:scale-95"
             style={{ background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, fontWeight: 600, boxShadow: `0 0 16px rgba(${accent.rgb},0.3)` }}>
@@ -408,7 +423,6 @@ export function Tasks() {
         </div>
       </div>
 
-      {/* Progress bar */}
       <div className="rounded-2xl px-4 py-4" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
         <div className="flex items-center justify-between mb-2.5">
           <span className="text-sm" style={{ fontWeight: 600, color: colors.text }}>Overall Progress</span>
@@ -428,7 +442,6 @@ export function Tasks() {
         </div>
       </div>
 
-      {/* Filters (list view only) */}
       {view === 'list' && (
         <div className="flex flex-wrap gap-2 items-center">
           <div className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl" style={{ background: colors.card, border: `1px solid ${colors.border}`, minWidth: '160px' }}>
@@ -451,7 +464,6 @@ export function Tasks() {
         </div>
       )}
 
-      {/* Task list / Calendar */}
       {view === 'list' ? (
         <div className="flex flex-col gap-2">
           {filtered.length === 0 ? (
