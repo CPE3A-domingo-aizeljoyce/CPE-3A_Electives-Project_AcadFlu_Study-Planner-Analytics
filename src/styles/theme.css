@@ -1,12 +1,3 @@
-/*
- * StudyFlow – base theme layer
- *
- * Comes after utilities.css in the import chain, so these
- * element-level rules provide sensible defaults while utility
- * classes (which have higher specificity as class selectors)
- * always win.
- */
-
 /* ── Heading defaults (utility classes override via specificity) ─ */
 h1 { font-size: 1.5rem;   line-height: 1.2; }
 h2 { font-size: 1.25rem;  line-height: 1.3; }

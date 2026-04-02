@@ -65,9 +65,7 @@ function NotifPanel({ notifs = [], setNotifs, colors, accent, onClose }) {
   const panelRef = useRef(null);
   const isMobile = useIsMobile(640);
   
-  // FIX: Inalis natin yung dobleng 'unread' at ginawang safe yung nag-iisa
   const unread = Array.isArray(notifs) ? notifs.filter(n => !n.read).length : 0;
-
   const posStyle = isMobile
     ? { top: 64, left: 8, right: 8, width: 'auto', maxWidth: '100%' }
     : { bottom: 80, left: 'var(--notif-left, 16px)', width: 320, maxWidth: 'calc(100vw - var(--notif-left, 16px) - 16px)' };
@@ -462,7 +460,6 @@ export function Layout() {
     return () => { document.body.style.overflow = ''; };
   }, [mobileOpen]);
 
-  // FIX: Isang beses lang idineclare
   const unread = Array.isArray(notifs) ? notifs.filter(n => !n.read).length : 0;
 
   const sidebarProps = {
@@ -474,7 +471,7 @@ export function Layout() {
   return (
     <div className="sf-root flex h-screen overflow-hidden" style={{ background: colors.bg, fontFamily: "'Inter', sans-serif" }}>
       
-      {/* FIX: Isang beses na lang tinawag yung NotifPanel, at nasa tamang pwesto na */}
+      {  }
       {showNotifs && (
         <NotifPanel 
           notifs={notifs} 
@@ -485,7 +482,7 @@ export function Layout() {
         />
       )}
 
-      {/* Profile Panel (nadagdag ko para buo yung features mo) */}
+      {/* Profile Panel */}
       {showProfile && (
         <ProfileDropdown 
           colors={colors} 
