@@ -84,8 +84,9 @@ export function Dashboard() {
     ));
   };
   
-  const completedCount = schedule.filter(t => t.done).length;
-  const totalTasks = schedule.length;
+const completedCount = schedule.filter(t => t.done).length;
+const totalTasks = schedule.length;
+const productivityScore = totalTasks === 0 ? 0 : Math.round((completedCount / totalTasks) * 100);
 
   // Weekly data
   const weeklyData = [
@@ -143,7 +144,14 @@ export function Dashboard() {
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" style={{ marginBottom: compactMode ? '0.75rem' : '1rem' }}>
         <StatCard colors={colors} icon={<Clock       className="w-4 h-4 text-indigo-400" />} label="Today's Study Time"  value="2h 45m"                        sub="3 sessions today"                iconBg="rgba(99,102,241,0.15)"  />
-        <StatCard colors={colors} icon={<TrendingUp  className="w-4 h-4 text-green-400"  />} label="Productivity Score"  value="87%"                           sub="Based on today's sessions"       iconBg="rgba(34,197,94,0.12)"   />
+        <StatCard 
+        colors={colors} 
+        icon={<TrendingUp className="w-4 h-4 text-green-400" />} 
+        label="Productivity Score" 
+        value={`${productivityScore}%`} 
+        sub="Based on completed tasks" 
+        iconBg="rgba(34,197,94,0.12)" 
+        />
         <StatCard colors={colors} icon={<Flame       className="w-4 h-4 text-orange-400" />} label="Current Streak"      value={`${DEMO_STREAK} Days`}         sub="Personal best: 18 days"          iconBg="rgba(249,115,22,0.12)"  />
         <StatCard colors={colors} icon={<CheckSquare className="w-4 h-4 text-purple-400" />} label="Tasks Completed" value={`${completedCount}/${totalTasks}`} sub={`${totalTasks - completedCount} remaining today`} iconBg="rgba(139,92,246,0.12)" />
       </div>

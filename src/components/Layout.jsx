@@ -61,14 +61,13 @@ const SEED_NOTIFS = [
 ];
 
 // ─── Notification Panel ───────────────────────────────────────────────────────
-function NotifPanel({ colors, accent, onClose }) {
-  const [notifs, setNotifs] = useState(SEED_NOTIFS);
+function NotifPanel({ notifs = [], setNotifs, colors, accent, onClose }) {
   const panelRef = useRef(null);
-  const unread   = notifs.filter(n => !n.read).length;
   const isMobile = useIsMobile(640);
+  
+  // FIX: Inalis natin yung dobleng 'unread' at ginawang safe yung nag-iisa
+  const unread = Array.isArray(notifs) ? notifs.filter(n => !n.read).length : 0;
 
-  // Mobile: full-width sheet below the 56px top bar
-  // Desktop: anchored to the bottom-left of the sidebar
   const posStyle = isMobile
     ? { top: 64, left: 8, right: 8, width: 'auto', maxWidth: '100%' }
     : { bottom: 80, left: 'var(--notif-left, 16px)', width: 320, maxWidth: 'calc(100vw - var(--notif-left, 16px) - 16px)' };
@@ -165,8 +164,6 @@ function ProfileDropdown({ colors, accent, lvl, onClose }) {
   const panelRef = useRef(null);
   const isMobile = useIsMobile(640);
 
-  // Mobile: full-width sheet below the 56px top bar
-  // Desktop: anchored to the bottom-left of the sidebar
   const posStyle = isMobile
     ? { top: 64, left: 8, right: 8, width: 'auto', maxWidth: '100%' }
     : { bottom: 80, left: 'var(--profile-left, 16px)', width: 240 };
@@ -244,7 +241,7 @@ function ProfileDropdown({ colors, accent, lvl, onClose }) {
 }
 
 // ─── Sidebar Content ──────────────────────────────────────────────────────────
-function SidebarContent({ collapsed, isMobile, colors, accent, lvl, showStreak, showXPBar, compactMode, animations, showNotifs, showProfile, setShowNotifs, setShowProfile, onClose }) {
+function SidebarContent({ notifs, collapsed, isMobile, colors, accent, lvl, showStreak, showXPBar, compactMode, animations, showNotifs, showProfile, setShowNotifs, setShowProfile, onClose }) {
   const navPy = compactMode ? '0.4rem' : '0.6rem';
   const dur   = animations ? '280ms' : '0ms';
 
@@ -252,7 +249,7 @@ function SidebarContent({ collapsed, isMobile, colors, accent, lvl, showStreak, 
   const navActiveBg     = `linear-gradient(135deg, rgba(${accent.rgb},0.22), rgba(${accent.rgb},0.10))`;
   const navActiveShadow = `0 0 0 1px rgba(${accent.rgb},0.3), inset 0 1px 0 rgba(255,255,255,0.05)`;
 
-  const unread = SEED_NOTIFS.filter(n => !n.read).length;
+  const unread = Array.isArray(notifs) ? notifs.filter(n => !n.read).length : 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -440,6 +437,7 @@ export function Layout() {
   const [mobileOpen,  setMobileOpen]  = useState(false);
   const [showNotifs,  setShowNotifs]  = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [notifs, setNotifs] = useState(SEED_NOTIFS);
 
   const location = useLocation();
   const { accent, colors, compactMode, animations, showXPBar, showStreak } = useAppearance();
@@ -464,24 +462,37 @@ export function Layout() {
     return () => { document.body.style.overflow = ''; };
   }, [mobileOpen]);
 
-  const unread = SEED_NOTIFS.filter(n => !n.read).length;
+  // FIX: Isang beses lang idineclare
+  const unread = Array.isArray(notifs) ? notifs.filter(n => !n.read).length : 0;
 
   const sidebarProps = {
     colors, accent, lvl, showStreak, showXPBar, compactMode, animations,
     showNotifs, showProfile, setShowNotifs, setShowProfile,
+    notifs,
   };
 
   return (
     <div className="sf-root flex h-screen overflow-hidden" style={{ background: colors.bg, fontFamily: "'Inter', sans-serif" }}>
+      
+      {/* FIX: Isang beses na lang tinawag yung NotifPanel, at nasa tamang pwesto na */}
+      {showNotifs && (
+        <NotifPanel 
+          notifs={notifs} 
+          setNotifs={setNotifs} 
+          colors={colors} 
+          accent={accent} 
+          onClose={() => setShowNotifs(false)} 
+        />
+      )}
 
-      {/* Overlay panels */}
-      {showNotifs  && <NotifPanel      colors={colors} accent={accent} onClose={() => setShowNotifs(false)} />}
-      {showProfile && <ProfileDropdown colors={colors} accent={accent} lvl={lvl} onClose={() => setShowProfile(false)} />}
-
-      {/* Mobile backdrop */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-40 sm:hidden" style={{ background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(2px)' }}
-          onClick={() => setMobileOpen(false)} />
+      {/* Profile Panel (nadagdag ko para buo yung features mo) */}
+      {showProfile && (
+        <ProfileDropdown 
+          colors={colors} 
+          accent={accent} 
+          lvl={lvl} 
+          onClose={() => setShowProfile(false)} 
+        />
       )}
 
       {/* Mobile drawer */}

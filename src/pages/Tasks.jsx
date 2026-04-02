@@ -70,7 +70,7 @@ function SubjectPill({ subject }) {
   );
 }
 
-// NILABAS NATIN ANG FIELD DITO PARA HINDI MAG-RE-RENDER AT MAWALA ANG FOCUS
+
 function Field({ label, children }) {
   const { colors } = useAppearance();
   return (
@@ -85,7 +85,7 @@ function Field({ label, children }) {
 function AddTaskForm({ defaultDate, onAdd, onClose }) {
   const [form, setForm] = useState({ title: '', subject: 'Mathematics', date: defaultDate, startTime: '09:00', endTime: '10:00', priority: 'medium' });
   const [error, setError] = useState('');
-  const [customSubject, setCustomSubject] = useState(''); // State para sa Others
+  const [customSubject, setCustomSubject] = useState(''); 
   const titleRef = useRef(null);
   const { colors, accent } = useAppearance();
 
@@ -94,7 +94,6 @@ function AddTaskForm({ defaultDate, onAdd, onClose }) {
   const submit = () => {
     if (!form.title.trim()) { setError('Please enter a task title.'); return; }
     
-    // Tama na ang logic dito, hindi na dodoble
     const finalSubject = form.subject === 'Others' ? customSubject.trim() : form.subject;
     onAdd({ ...form, subject: finalSubject || 'Others' }); 
     onClose();
@@ -463,7 +462,7 @@ export function Tasks() {
           </select>
         </div>
       )}
-
+{/*  */}
       {view === 'list' ? (
         <div className="flex flex-col gap-2">
           {filtered.length === 0 ? (
