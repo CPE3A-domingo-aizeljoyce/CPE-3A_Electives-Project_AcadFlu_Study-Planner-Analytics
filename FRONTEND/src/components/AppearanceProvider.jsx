@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 
-// ─── Accent color palette ─────────────────────────────────────────────────────
 export const ACCENT_PALETTE = {
   indigo: { main: '#6366f1', light: '#8b5cf6', rgb: '99,102,241'  },
   blue:   { main: '#3b82f6', light: '#60a5fa', rgb: '59,130,246'  },
@@ -10,7 +9,6 @@ export const ACCENT_PALETTE = {
   rose:   { main: '#f43f5e', light: '#fb7185', rgb: '244,63,94'   },
 };
 
-// ─── Color tokens ─────────────────────────────────────────────────────────────
 const DARK = {
   bg: '#0d1117', card: '#131929', card2: '#0f1626', border: '#1a2540',
   sidebar: '#0f1626', text: '#e2e8f0', textSub: '#94a3b8', textMuted: '#64748b',
@@ -25,7 +23,6 @@ const LIGHT = {
   tooltipBg: '#ffffff', tooltipBorder: '#e2e8f0', inputScheme: 'light',
 };
 
-// ─── Persistence ──────────────────────────────────────────────────────────────
 const LS_KEY = 'sf_appearance';
 
 const defaultState = {
@@ -45,7 +42,6 @@ function loadState() {
   return defaultState;
 }
 
-// ─── Apply theme to <html> ────────────────────────────────────────────────────
 function applyToDOM(state) {
   const pal  = ACCENT_PALETTE[state.accentColor] ?? ACCENT_PALETTE.indigo;
   const cols = state.theme === 'dark' ? DARK : LIGHT;
@@ -61,7 +57,6 @@ function applyToDOM(state) {
   root.style.setProperty('--sf-text',       cols.text);
   root.style.setProperty('--sf-text-sub',   cols.textSub);
   root.style.setProperty('--sf-text-muted', cols.textMuted);
-  // Keep Tailwind vars in sync
   root.style.setProperty('--background',    cols.bg);
   root.style.setProperty('--foreground',    cols.text);
   root.style.setProperty('--border',        cols.border);
@@ -77,7 +72,6 @@ function applyToDOM(state) {
   else                   root.removeAttribute('data-no-anim');
 }
 
-// ─── Context ──────────────────────────────────────────────────────────────────
 const AppearanceCtx = createContext(null);
 
 export function AppearanceProvider({ children }) {

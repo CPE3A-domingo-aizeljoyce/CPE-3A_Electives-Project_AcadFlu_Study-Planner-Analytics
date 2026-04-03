@@ -1,4 +1,3 @@
-/* ── Inter font from Google Fonts ─────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
 
 * {
@@ -18,18 +17,12 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Vite mounts the app into #root — make it stretch full-height
-   so h-screen / flex layouts work correctly */
 #root {
   height: 100%;
   display: flex;
   flex-direction: column;
 }
 
-/* ── StudyFlow CSS custom property defaults ───────────────────────────────── *
- * Fallback values before AppearanceProvider.jsx mounts and writes the real
- * values via JavaScript.  Dark theme (navy) is the default.
- * ─────────────────────────────────────────────────────────────────────────── */
 :root {
   --sf-bg:         #0d1117;
   --sf-card:       #131929;
@@ -43,12 +36,10 @@ html, body {
   --accent-light: #8b5cf6;
   --accent-rgb:   99,102,241;
 
-  /* Popup panel positions — overridden by JS in Layout.jsx */
   --notif-left:   16px;
   --profile-left: 16px;
 }
 
-/* Light theme overrides — set via data-theme="light" by AppearanceProvider */
 html[data-theme="light"] {
   --sf-bg:         #f0f4f8;
   --sf-card:       #ffffff;

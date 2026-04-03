@@ -1,13 +1,3 @@
-/* ============================================================
-   StudyFlow — Hand-crafted utility CSS (Tailwind replacement)
-   ============================================================ */
-
-/* ─────────────────────────────────────────────────────────────
-   1. PREFLIGHT  (mirrors Tailwind's built-in browser reset)
-   Without this, browser defaults (margins, button chrome,
-   list bullets, link colours, etc.) break every page layout.
-   ───────────────────────────────────────────────────────────── */
-
 *, ::before, ::after {
   box-sizing: border-box;
   border-width: 0;
@@ -25,6 +15,17 @@ html {
 body {
   margin: 0;
   line-height: inherit;
+  background: #0d1117;
+  color: #e2e8f0;
+  min-height: 100vh;
+}
+
+html, body {
+  height: 100%;
+}
+
+#root {
+  min-height: 100%;
 }
 
 /* Strip default margins from all block elements */

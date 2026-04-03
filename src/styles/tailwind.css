@@ -1,8 +1,0 @@
-/*
- * StudyFlow — Tailwind removed.
- *
- * All utility classes are now provided by utilities.css (plain CSS).
- * The @tailwindcss/vite plugin is still wired into vite.config.ts
- * (system-protected file) so we leave this file in place as a no-op
- * to satisfy the import in index.css — it just emits nothing.
- */
