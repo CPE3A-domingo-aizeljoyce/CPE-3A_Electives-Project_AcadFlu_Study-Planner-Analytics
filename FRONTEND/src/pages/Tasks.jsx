@@ -1,8 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAppearance } from '../components/AppearanceProvider';
 import {
+  useTasks, TODAY, CURRENT_SPRINT_NUM, DEFAULT_SPRINT_GOALS,
+  getTaskSprintNum, getSprintRange,
+} from '../components/TaskContext';
+import {
   Check, X, Clock, Flag, Trash2, ChevronLeft, ChevronRight,
-  Plus, BookOpen, Search, List, CalendarDays,
+  Plus, BookOpen, Search, List, CalendarDays, LayoutGrid,
+  Zap, Target, Pencil,
 } from 'lucide-react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -19,10 +24,17 @@ const PRIORITY = {
   low:    { bg: 'rgba(100,116,139,0.13)', color: '#94a3b8', label: 'Low'    },
 };
 
+// ─── Kanban column definitions ────────────────────────────────────────────────
+const KANBAN_COLS = [
+  { id: 'todo',        label: 'To Do',       color: '#94a3b8', bg: 'rgba(148,163,184,0.10)', badge: 'rgba(148,163,184,0.15)' },
+  { id: 'in-progress', label: 'In Progress', color: '#6366f1', bg: 'rgba(99,102,241,0.06)',  badge: 'rgba(99,102,241,0.15)'  },
+  { id: 'done',        label: 'Done',        color: '#22c55e', bg: 'rgba(34,197,94,0.06)',   badge: 'rgba(34,197,94,0.15)'   },
+];
+
 const MONTHS     = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAYS_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-const TODAY = new Date().toISOString().split('T')[0];
+// TODAY is imported from TaskContext — derive calendar helpers from it
 const [TODAY_Y, TODAY_M, TODAY_D] = TODAY.split('-').map(Number);
 
 function getDateStr(y, m, d) {
@@ -35,22 +47,7 @@ function offsetDate(days) {
   return d.toISOString().split('T')[0];
 }
 
-const SEED_TASKS = [
-  { id: 1,  title: 'Calculus – Chapter 5: Integration',    subject: 'Mathematics',      date: TODAY,           startTime: '09:00', endTime: '11:00', priority: 'high',   done: false },
-  { id: 2,  title: 'Read Physics textbook Ch. 12',         subject: 'Physics',          date: TODAY,           startTime: '11:30', endTime: '13:00', priority: 'medium', done: true  },
-  { id: 3,  title: 'Chemistry – reaction equations',       subject: 'Chemistry',        date: TODAY,           startTime: '14:00', endTime: '15:30', priority: 'high',   done: false },
-  { id: 4,  title: 'English essay draft – Climate Change', subject: 'English',          date: TODAY,           startTime: '16:00', endTime: '17:30', priority: 'low',    done: false },
-  { id: 5,  title: 'Biology lab report write-up',          subject: 'Biology',          date: offsetDate(1),   startTime: '18:00', endTime: '19:00', priority: 'medium', done: false },
-  { id: 6,  title: 'History – WWII analysis essay',        subject: 'History',          date: offsetDate(1),   startTime: '10:00', endTime: '12:00', priority: 'medium', done: false },
-  { id: 7,  title: 'Algorithm practice – sorting',         subject: 'Computer Science', date: offsetDate(3),   startTime: '14:00', endTime: '16:00', priority: 'high',   done: false },
-  { id: 8,  title: 'Biology quiz review',                  subject: 'Biology',          date: offsetDate(5),   startTime: '09:00', endTime: '10:30', priority: 'high',   done: false },
-  { id: 9,  title: 'Calculus – Chapter 6: Derivatives',    subject: 'Mathematics',      date: offsetDate(7),   startTime: '10:00', endTime: '12:00', priority: 'high',   done: false },
-  { id: 10, title: 'English vocabulary test prep',         subject: 'English',          date: offsetDate(8),   startTime: '13:00', endTime: '14:00', priority: 'low',    done: false },
-  { id: 11, title: 'CS – Binary Trees lecture notes',      subject: 'Computer Science', date: offsetDate(9),   startTime: '15:00', endTime: '17:00', priority: 'medium', done: false },
-  { id: 12, title: 'Physics – Thermodynamics problems',    subject: 'Physics',          date: offsetDate(11),  startTime: '09:00', endTime: '11:00', priority: 'high',   done: false },
-];
-
-// ─── Small UI pieces ──────────────────────────────────────────────────────────
+// ─── Shared small UI pieces ───────────────────────────────────────────────────
 function PriorityBadge({ p }) {
   const cfg = PRIORITY[p];
   return (
@@ -62,14 +59,13 @@ function PriorityBadge({ p }) {
 
 function SubjectPill({ subject }) {
   const { accent } = useAppearance();
-  const color = SUBJECT_COLOR[subject] || accent.main; 
+  const color = SUBJECT_COLOR[subject] || accent.main;
   return (
     <span className="rounded-md px-2 py-0.5 text-xs shrink-0" style={{ background: `${color}20`, color, fontWeight: 500 }}>
       {subject}
     </span>
   );
 }
-
 
 function Field({ label, children }) {
   const { colors } = useAppearance();
@@ -85,7 +81,7 @@ function Field({ label, children }) {
 function AddTaskForm({ defaultDate, onAdd, onClose }) {
   const [form, setForm] = useState({ title: '', subject: 'Mathematics', date: defaultDate, startTime: '09:00', endTime: '10:00', priority: 'medium' });
   const [error, setError] = useState('');
-  const [customSubject, setCustomSubject] = useState(''); 
+  const [customSubject, setCustomSubject] = useState('');
   const titleRef = useRef(null);
   const { colors, accent } = useAppearance();
 
@@ -95,10 +91,10 @@ function AddTaskForm({ defaultDate, onAdd, onClose }) {
     if (!form.title.trim()) { setError('Please enter a task title.'); return; }
     if (form.date < TODAY) { setError('Cannot add tasks to past dates.'); return; }
     const finalSubject = form.subject === 'Others' ? customSubject.trim() : form.subject;
-    onAdd({ ...form, subject: finalSubject || 'Others' }); 
+    onAdd({ ...form, subject: finalSubject || 'Others' });
     onClose();
   };
-  
+
   const inputStyle = { background: colors.card2, border: `1px solid ${colors.border}`, color: colors.text, colorScheme: colors.inputScheme };
   const cls = "w-full rounded-xl px-3.5 py-2.5 text-sm outline-none";
 
@@ -126,18 +122,18 @@ function AddTaskForm({ defaultDate, onAdd, onClose }) {
           </Field>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Subject">
-              <select className={cls} style={inputStyle} value={form.subject} 
+              <select className={cls} style={inputStyle} value={form.subject}
                 onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}>
                 {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-                <option value="Others">Others...</option> 
+                <option value="Others">Others...</option>
               </select>
               {form.subject === 'Others' && (
-                <input 
-                  className={`${cls} mt-2`} 
-                  style={inputStyle} 
-                  placeholder="Type subject name..." 
-                  value={customSubject} 
-                  onChange={e => setCustomSubject(e.target.value)} 
+                <input
+                  className={`${cls} mt-2`}
+                  style={inputStyle}
+                  placeholder="Type subject name..."
+                  value={customSubject}
+                  onChange={e => setCustomSubject(e.target.value)}
                 />
               )}
             </Field>
@@ -150,13 +146,13 @@ function AddTaskForm({ defaultDate, onAdd, onClose }) {
             </Field>
           </div>
           <Field label="Date">
-            <input 
-              type="date" 
-              className={cls} 
-              style={inputStyle} 
-              value={form.date} 
-              min={TODAY} 
-              onChange={e => setForm(f => ({ ...f, date: e.target.value }))} 
+            <input
+              type="date"
+              className={cls}
+              style={inputStyle}
+              value={form.date}
+              min={TODAY}
+              onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
             />
           </Field>
           <div className="grid grid-cols-2 gap-4">
@@ -368,48 +364,472 @@ function CalendarView({ tasks, onToggle, onRemove, onAddForDate }) {
   );
 }
 
+// ─── Kanban Card ──────────────────────────────────────────────────────────────
+function KanbanCard({ task, onMoveCol, onRemove, onToggle }) {
+  const { colors, accent } = useAppearance();
+  const subjectColor = SUBJECT_COLOR[task.subject] || accent.main;
+  const isDone = task.status === 'done';
+  const moveCols = KANBAN_COLS.filter(c => c.id !== task.status);
+
+  const handleDragStart = (e) => {
+    e.dataTransfer.setData('taskId', String(task.id));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  return (
+    <div
+      draggable
+      onDragStart={handleDragStart}
+      className="rounded-2xl p-3 transition-all duration-150"
+      style={{
+        background: colors.card,
+        border: `1px solid ${isDone ? colors.border : `${subjectColor}28`}`,
+        opacity: isDone ? 0.65 : 1,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
+        cursor: 'grab',
+        userSelect: 'none',
+      }}
+    >
+      {/* Row 1: color stripe + title + check + trash
+           check/trash are fixed w-6 h-6 so they never push the title.       */}
+      <div className="flex items-start gap-2 mb-2.5">
+        <div
+          className="rounded-full shrink-0"
+          style={{ width: 3, alignSelf: 'stretch', minHeight: 30, background: subjectColor, opacity: isDone ? 0.4 : 0.8 }}
+        />
+        <p
+          className="flex-1 min-w-0 text-xs leading-snug"
+          style={{ color: isDone ? colors.textMuted : colors.text, fontWeight: 500, textDecoration: isDone ? 'line-through' : 'none', lineHeight: 1.5 }}
+        >
+          {task.title}
+        </p>
+        <div className="flex gap-1 shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggle(task.id); }}
+            title={isDone ? 'Mark as to-do' : 'Mark as done'}
+            className="w-6 h-6 rounded-lg flex items-center justify-center"
+            style={{ background: isDone ? 'rgba(34,197,94,0.18)' : colors.card2, color: isDone ? '#22c55e' : colors.textMuted, border: 'none', cursor: 'pointer' }}>
+            <Check className="w-3 h-3" strokeWidth={3} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemove(task.id); }}
+            title="Delete"
+            className="w-6 h-6 rounded-lg flex items-center justify-center hover:text-red-400"
+            style={{ background: colors.card2, color: colors.textMuted, border: 'none', cursor: 'pointer' }}>
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+
+      {/* Row 2: pills — flex-wrap handles any card width safely */}
+      <div className="flex flex-wrap gap-1 mb-2.5">
+        <SubjectPill subject={task.subject} />
+        <PriorityBadge p={task.priority} />
+      </div>
+
+      {/* Row 3: time + move buttons
+           flex-wrap means buttons fall to next line on narrow cards instead
+           of ever pushing outside the card boundary.                         */}
+      <div className="flex items-center flex-wrap gap-1.5">
+        <span className="flex items-center gap-1 text-xs flex-1 min-w-0" style={{ color: colors.textMuted }}>
+          <Clock className="w-3 h-3 shrink-0" />
+          <span className="truncate">{task.startTime}–{task.endTime}</span>
+        </span>
+        {moveCols.map(col => (
+          <button
+            key={col.id}
+            onClick={(e) => { e.stopPropagation(); onMoveCol(task.id, col.id); }}
+            title={`Move to ${col.label}`}
+            className="flex items-center gap-0.5 px-2 py-1 rounded-lg shrink-0 active:scale-95"
+            style={{
+              background: `${col.color}18`,
+              color: col.color,
+              fontWeight: 600,
+              fontSize: 10,
+              border: `1px solid ${col.color}25`,
+              cursor: 'pointer',
+            }}>
+            <ChevronRight className="w-2.5 h-2.5 shrink-0" />
+            <span>{col.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Kanban Column ────────────────────────────────────────────────────────────
+function KanbanColumn({ col, tasks, onMoveCol, onRemove, onToggle, onAdd }) {
+  const { colors, accent } = useAppearance();
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setIsDragOver(true);
+  };
+  const handleDragLeave = (e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) setIsDragOver(false);
+  };
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const taskId = Number(e.dataTransfer.getData('taskId'));
+    if (taskId) onMoveCol(taskId, col.id);
+  };
+
+  return (
+    <div className="flex flex-col w-full min-w-0">
+
+      {/* Column header */}
+      <div className="flex items-center justify-between mb-3 px-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: col.color }} />
+          <span className="text-xs truncate" style={{ fontWeight: 700, color: colors.text, letterSpacing: '0.03em' }}>
+            {col.label.toUpperCase()}
+          </span>
+          <span className="text-xs px-2 py-0.5 rounded-full shrink-0" style={{ background: col.badge, color: col.color, fontWeight: 700 }}>
+            {tasks.length}
+          </span>
+        </div>
+        {col.id === 'todo' && (
+          <button
+            onClick={onAdd}
+            className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
+            title="Add task"
+            style={{ background: `rgba(${accent.rgb},0.12)`, color: accent.main, border: 'none', cursor: 'pointer' }}>
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Top accent line */}
+      <div className="rounded-full mb-3" style={{ height: 3, background: col.color, opacity: 0.5 }} />
+
+      {/* Drop zone — no maxHeight so stacked columns scroll with the page,
+           not independently, keeping the layout clean on all screen sizes.   */}
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className="flex flex-col gap-2 rounded-2xl p-2 transition-all duration-150"
+        style={{
+          minHeight: 120,
+          background: isDragOver ? `rgba(${accent.rgb},0.07)` : col.bg,
+          border: `2px dashed ${isDragOver ? accent.main : 'transparent'}`,
+        }}
+      >
+        {tasks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center" style={{ opacity: 0.4 }}>
+            <BookOpen className="w-6 h-6 mb-1.5" style={{ color: colors.textMuted }} />
+            <p className="text-xs" style={{ color: colors.textMuted, fontWeight: 500 }}>
+              {isDragOver ? 'Drop here' : 'No tasks'}
+            </p>
+          </div>
+        ) : (
+          tasks.map(task => (
+            <KanbanCard
+              key={task.id}
+              task={task}
+              onMoveCol={onMoveCol}
+              onRemove={onRemove}
+              onToggle={onToggle}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Kanban View ──────────────────────────────────────────────────────────────
+function KanbanView({ tasks, onMoveCol, onRemove, onToggle, onAdd }) {
+  const byStatus = {
+    'todo':        tasks.filter(t => t.status === 'todo'),
+    'in-progress': tasks.filter(t => t.status === 'in-progress'),
+    'done':        tasks.filter(t => t.status === 'done'),
+  };
+
+  const sharedColProps = { onMoveCol, onRemove, onToggle, onAdd };
+
+  // auto-fit + minmax(min(100%, 240px), 1fr):
+  //   • The browser fits as many 240 px columns as the available width allows.
+  //   • min(100%, 240px) ensures a single column is never wider than the
+  //     container, making horizontal overflow mathematically impossible.
+  //   • Result: 3 cols on wide desktop, 2 on tablet, 1 on phone —
+  //     all columns always visible, no tabs, no JS breakpoint logic.
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
+      gap: '1rem',
+      alignItems: 'start',
+    }}>
+      {KANBAN_COLS.map(col => (
+        <KanbanColumn key={col.id} col={col} tasks={byStatus[col.id]} {...sharedColProps} />
+      ))}
+    </div>
+  );
+}
+
+// ─── Sprint Banner ────────────────────────────────────────────────────────────
+function SprintBanner({ tasks, selectedSprint, onSelectSprint, sprintGoals, onUpdateGoal }) {
+  const { colors, accent } = useAppearance();
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [goalDraft,   setGoalDraft]   = useState('');
+  const goalRef = useRef(null);
+
+  // Collect all sprint numbers that have tasks; always include sprint 1
+  const sprintNums = [...new Set(
+    tasks.map(t => getTaskSprintNum(t.date)).filter(n => n !== null && n >= 1)
+  )].sort((a, b) => a - b);
+  if (!sprintNums.includes(1)) sprintNums.unshift(1);
+
+  // Stats for selected sprint (or all tasks)
+  const pool      = selectedSprint !== null ? tasks.filter(t => getTaskSprintNum(t.date) === selectedSprint) : tasks;
+  const poolDone  = pool.filter(t => t.done).length;
+  const poolTotal = pool.length;
+  const poolPct   = poolTotal > 0 ? Math.round((poolDone / poolTotal) * 100) : 0;
+  const range     = selectedSprint !== null ? getSprintRange(selectedSprint) : null;
+  const fmtDate   = str => new Date(str + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  const startEdit = () => {
+    setGoalDraft(sprintGoals[selectedSprint] || '');
+    setEditingGoal(true);
+    setTimeout(() => goalRef.current?.focus(), 40);
+  };
+  const saveGoal = () => {
+    onUpdateGoal(selectedSprint, goalDraft.trim());
+    setEditingGoal(false);
+  };
+
+  return (
+    <div className="rounded-2xl p-4 flex flex-col gap-3"
+      style={{ background: colors.card, border: `1px solid rgba(${accent.rgb},0.22)`, boxShadow: `0 4px 24px rgba(${accent.rgb},0.06)` }}>
+
+      {/* Row 1: label + sprint tabs */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Zap className="w-3.5 h-3.5" style={{ color: accent.main }} />
+          <span className="text-sm" style={{ fontWeight: 700, color: colors.text }}>Sprint View</span>
+          {selectedSprint !== null && selectedSprint === CURRENT_SPRINT_NUM && (
+            <span className="text-xs px-2 py-0.5 rounded-full"
+              style={{ background: `rgba(${accent.rgb},0.13)`, color: accent.main, fontWeight: 600 }}>
+              Active
+            </span>
+          )}
+        </div>
+        {/* Sprint tab buttons */}
+        <div className="flex items-center gap-1 flex-wrap">
+          <button
+            onClick={() => { onSelectSprint(null); setEditingGoal(false); }}
+            className="px-2.5 py-1 rounded-lg text-xs transition-all"
+            style={selectedSprint === null
+              ? { background: accent.main, color: '#fff', fontWeight: 600, boxShadow: `0 0 8px rgba(${accent.rgb},0.28)` }
+              : { background: colors.card2, color: colors.textMuted, fontWeight: 500 }}>
+            All
+          </button>
+          {sprintNums.map(num => (
+            <button key={num}
+              onClick={() => { onSelectSprint(num); setEditingGoal(false); }}
+              className="px-2.5 py-1 rounded-lg text-xs transition-all"
+              style={selectedSprint === num
+                ? { background: accent.main, color: '#fff', fontWeight: 600, boxShadow: `0 0 8px rgba(${accent.rgb},0.28)` }
+                : num === CURRENT_SPRINT_NUM
+                  ? { background: `rgba(${accent.rgb},0.10)`, color: accent.main, fontWeight: 600, border: `1px solid rgba(${accent.rgb},0.2)` }
+                  : { background: colors.card2, color: colors.textMuted, fontWeight: 500 }}>
+              Week {num}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Sprint detail — shown when a specific sprint is selected */}
+      {selectedSprint !== null && (
+        <>
+          {/* Sprint goal row */}
+          <div className="flex items-start gap-2">
+            <Target className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: accent.main, opacity: 0.75 }} />
+            {editingGoal ? (
+              <div className="flex-1 flex items-center gap-2 flex-wrap">
+                <input ref={goalRef}
+                  className="flex-1 text-xs rounded-lg px-2.5 py-1.5 outline-none"
+                  style={{ background: colors.card2, border: `1px solid rgba(${accent.rgb},0.35)`, color: colors.text, minWidth: 180 }}
+                  value={goalDraft}
+                  onChange={e => setGoalDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveGoal(); if (e.key === 'Escape') setEditingGoal(false); }}
+                  placeholder="e.g. Finish all chapter readings..."
+                />
+                <button onClick={saveGoal}
+                  className="text-xs px-2.5 py-1.5 rounded-lg"
+                  style={{ background: accent.main, color: '#fff', fontWeight: 600 }}>
+                  Save
+                </button>
+                <button onClick={() => setEditingGoal(false)}
+                  className="text-xs px-2.5 py-1.5 rounded-lg"
+                  style={{ background: colors.card2, color: colors.textMuted }}>
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-start gap-2 group">
+                <p className="text-xs flex-1 leading-relaxed"
+                  style={{
+                    color: sprintGoals[selectedSprint] ? colors.textSub : colors.textMuted,
+                    fontStyle: sprintGoals[selectedSprint] ? 'normal' : 'italic',
+                  }}>
+                  {sprintGoals[selectedSprint] || 'No sprint goal set — hover and click ✏ to add one.'}
+                </p>
+                <button onClick={startEdit}
+                  className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-opacity"
+                  style={{ background: colors.card2, color: colors.textMuted, border: `1px solid ${colors.border}` }}
+                  title="Edit sprint goal">
+                  <Pencil className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Date range + task counts */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.textMuted }}>
+              <CalendarDays className="w-3.5 h-3.5" />
+              {fmtDate(range.start)} – {fmtDate(range.end)}
+            </span>
+            <div className="flex items-center gap-3">
+              {[
+                { label: 'Tasks', val: poolTotal,            color: colors.textMuted },
+                { label: 'Done',  val: poolDone,             color: '#22c55e'        },
+                { label: 'Left',  val: poolTotal - poolDone, color: '#f97316'        },
+              ].map(s => (
+                <div key={s.label} className="flex items-center gap-1">
+                  <span className="text-xs" style={{ color: s.color, fontWeight: 700 }}>{s.val}</span>
+                  <span className="text-xs" style={{ color: colors.textMuted }}>{s.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Sprint progress bar */}
+          {poolTotal > 0 && (
+            <div>
+              <div className="flex justify-between text-xs mb-1">
+                <span style={{ color: colors.textMuted, fontWeight: 500 }}>Week {selectedSprint} progress</span>
+                <span style={{ color: accent.main, fontWeight: 700 }}>{poolPct}%</span>
+              </div>
+              <div className="h-1.5 rounded-full" style={{ background: colors.border }}>
+                <div className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${poolPct}%`, background: `linear-gradient(90deg, ${accent.main}, #22c55e)` }} />
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* "All" view — mini card per sprint */}
+      {selectedSprint === null && sprintNums.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          {sprintNums.map(num => {
+            const sTasks = tasks.filter(t => getTaskSprintNum(t.date) === num);
+            const sDone  = sTasks.filter(t => t.done).length;
+            const sPct   = sTasks.length > 0 ? Math.round((sDone / sTasks.length) * 100) : 0;
+            const sRange = getSprintRange(num);
+            const isCur  = num === CURRENT_SPRINT_NUM;
+            return (
+              <button key={num} onClick={() => onSelectSprint(num)}
+                className="flex flex-col gap-1.5 p-3 rounded-xl flex-1 text-left transition-all"
+                style={{
+                  minWidth: 110, cursor: 'pointer',
+                  background: colors.card2,
+                  border: `1px solid ${isCur ? `rgba(${accent.rgb},0.3)` : colors.border}`,
+                }}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs" style={{ fontWeight: 700, color: isCur ? accent.main : colors.text }}>
+                    Week {num}{isCur ? ' · now' : ''}
+                  </span>
+                  <span className="text-xs" style={{ color: accent.main, fontWeight: 700 }}>{sPct}%</span>
+                </div>
+                <div className="h-1 rounded-full" style={{ background: colors.border }}>
+                  <div className="h-full rounded-full"
+                    style={{ width: `${sPct}%`, background: `linear-gradient(90deg, ${accent.main}, #22c55e)` }} />
+                </div>
+                <span className="text-xs" style={{ color: colors.textMuted }}>{fmtDate(sRange.start)} – {fmtDate(sRange.end)}</span>
+                <span className="text-xs" style={{ color: colors.textMuted }}>{sDone} / {sTasks.length} tasks done</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Tasks Page ───────────────────────────────────────────────────────────────
 export function Tasks() {
-  const [tasks, setTasks]        = useState(SEED_TASKS);
-  const [view, setView]          = useState('list');
-  const [search, setSearch]      = useState('');
-  const [filterSubject, setFS]   = useState('All');
-  const [filterPriority, setFP]  = useState('All');
-  const [showForm, setShowForm]  = useState(false);
-  const [formDate, setFormDate]  = useState(TODAY);
-  const { colors, accent }       = useAppearance();
+  // ── All task state and mutations come from shared context ──
+  const { tasks, sprintGoals, toggle, remove, addTask, moveToCol, updateGoal } = useTasks();
 
-  const toggle       = (id) => setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
-  const remove       = (id) => setTasks(prev => prev.filter(t => t.id !== id));
-  const addTask      = (data) => setTasks(prev => [...prev, { ...data, id: Date.now(), done: false }]);
-  const openFormFor  = (date) => { setFormDate(date); setShowForm(true); };
+  // ── UI-only state stays local ──
+  const [view, setView]             = useState('list');
+  const [search, setSearch]         = useState('');
+  const [filterSubject, setFS]      = useState('All');
+  const [filterPriority, setFP]     = useState('All');
+  const [showForm, setShowForm]     = useState(false);
+  const [formDate, setFormDate]     = useState(TODAY);
+  const [selectedSprint, setSprint] = useState(CURRENT_SPRINT_NUM);
+  const { colors, accent }          = useAppearance();
 
+  const openFormFor = (date) => {
+    let d = date;
+    if (!d && selectedSprint !== null) {
+      const r = getSprintRange(selectedSprint);
+      d = r.start >= TODAY ? r.start : TODAY;
+    }
+    setFormDate(d || TODAY);
+    setShowForm(true);
+  };
+
+  // Filtered tasks — respects search, subject, priority AND selected sprint
   const filtered = tasks.filter(t => {
     const q = search.toLowerCase();
     return (t.title.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q))
       && (filterSubject  === 'All' || t.subject  === filterSubject)
-      && (filterPriority === 'All' || t.priority === filterPriority);
+      && (filterPriority === 'All' || t.priority === filterPriority)
+      && (selectedSprint === null  || getTaskSprintNum(t.date) === selectedSprint);
   });
 
   const completed = tasks.filter(t => t.done).length;
   const total     = tasks.length;
   const pct       = total > 0 ? Math.round((completed / total) * 100) : 0;
 
+  // Default date for new tasks respects the active sprint
+  const newTaskDate = (() => {
+    if (selectedSprint === null) return TODAY;
+    const r = getSprintRange(selectedSprint);
+    return r.start >= TODAY ? r.start : TODAY;
+  })();
+
+  // View options config
+  const VIEW_OPTIONS = [
+    { v: 'list',     icon: <List       className="w-3.5 h-3.5" />, label: 'List'     },
+    { v: 'kanban',   icon: <LayoutGrid className="w-3.5 h-3.5" />, label: 'Kanban'   },
+    { v: 'calendar', icon: <CalendarDays className="w-3.5 h-3.5" />, label: 'Calendar' },
+  ];
+
   return (
     <div className="min-h-full flex flex-col gap-4" style={{ background: colors.bg, padding: '1rem' }}>
       {showForm && <AddTaskForm defaultDate={formDate} onAdd={addTask} onClose={() => setShowForm(false)} />}
 
+      {/* ── Header ── */}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.5px', lineHeight: 1.3, color: colors.text }}>Task Scheduler</h1>
           <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{completed} of {total} tasks · {pct}% done</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {/* View toggle */}
           <div className="flex items-center p-1 gap-0.5 rounded-xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
-            {[
-              { v: 'list',     icon: <List className="w-3.5 h-3.5" />,       label: 'List'     },
-              { v: 'calendar', icon: <CalendarDays className="w-3.5 h-3.5" />, label: 'Calendar' },
-            ].map(({ v, icon, label }) => (
+            {VIEW_OPTIONS.map(({ v, icon, label }) => (
               <button key={v} onClick={() => setView(v)}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all"
                 style={view === v
@@ -420,7 +840,8 @@ export function Tasks() {
               </button>
             ))}
           </div>
-          <button onClick={() => openFormFor(TODAY)}
+          {/* New Task button */}
+          <button onClick={() => openFormFor(newTaskDate)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-sm hover:opacity-90 active:scale-95"
             style={{ background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, fontWeight: 600, boxShadow: `0 0 16px rgba(${accent.rgb},0.3)` }}>
             <Plus className="w-4 h-4" />
@@ -429,6 +850,16 @@ export function Tasks() {
         </div>
       </div>
 
+      {/* ── Sprint Banner ── */}
+      <SprintBanner
+        tasks={tasks}
+        selectedSprint={selectedSprint}
+        onSelectSprint={setSprint}
+        sprintGoals={sprintGoals}
+        onUpdateGoal={updateGoal}
+      />
+
+      {/* ── Overall Progress ── */}
       <div className="rounded-2xl px-4 py-4" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
         <div className="flex items-center justify-between mb-2.5">
           <span className="text-sm" style={{ fontWeight: 600, color: colors.text }}>Overall Progress</span>
@@ -448,12 +879,14 @@ export function Tasks() {
         </div>
       </div>
 
-      {view === 'list' && (
+      {/* ── Search & Filter bar — shown for List and Kanban ── */}
+      {(view === 'list' || view === 'kanban') && (
         <div className="flex flex-wrap gap-2 items-center">
           <div className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl" style={{ background: colors.card, border: `1px solid ${colors.border}`, minWidth: '160px' }}>
             <Search className="w-4 h-4 shrink-0" style={{ color: colors.textMuted }} />
             <input className="flex-1 bg-transparent text-sm outline-none" style={{ color: colors.text }}
-              placeholder="Search tasks..." value={search} onChange={e => setSearch(e.target.value)} />
+              placeholder={selectedSprint !== null ? `Search Week ${selectedSprint} tasks...` : 'Search tasks...'}
+              value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <select className="px-3 py-2 rounded-xl text-sm outline-none flex-1" style={{ background: colors.card, border: `1px solid ${colors.border}`, color: colors.textSub, colorScheme: colors.inputScheme, minWidth: '120px' }}
             value={filterSubject} onChange={e => setFS(e.target.value)}>
@@ -469,19 +902,36 @@ export function Tasks() {
           </select>
         </div>
       )}
-{/*  */}
-      {view === 'list' ? (
+
+      {/* ── View Render ── */}
+      {view === 'list' && (
         <div className="flex flex-col gap-2">
           {filtered.length === 0 ? (
             <div className="text-center py-16" style={{ color: colors.textMuted }}>
               <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No tasks match your filters.</p>
+              <p className="text-sm">
+                {selectedSprint !== null
+                  ? `No tasks in Week ${selectedSprint} match your filters.`
+                  : 'No tasks match your filters.'}
+              </p>
             </div>
           ) : filtered.map(task => (
             <TaskRow key={task.id} task={task} onToggle={() => toggle(task.id)} onRemove={() => remove(task.id)} />
           ))}
         </div>
-      ) : (
+      )}
+
+      {view === 'kanban' && (
+        <KanbanView
+          tasks={filtered}
+          onMoveCol={moveToCol}
+          onRemove={remove}
+          onToggle={toggle}
+          onAdd={() => openFormFor(newTaskDate)}
+        />
+      )}
+
+      {view === 'calendar' && (
         <CalendarView tasks={tasks} onToggle={toggle} onRemove={remove} onAddForDate={openFormFor} />
       )}
     </div>

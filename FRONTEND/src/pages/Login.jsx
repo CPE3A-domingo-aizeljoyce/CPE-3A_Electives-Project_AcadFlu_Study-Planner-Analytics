@@ -154,7 +154,7 @@ export function Login() {
               {tab === 'signup' && (
                 <div>
                   <label className="block text-xs text-slate-400 mb-1.5" style={{ fontWeight: 500 }}>Full name</label>
-                  <input type="text" placeholder="Alex Johnson" value={form.name} onChange={set('name')}
+                  <input type="text" placeholder="Moran" value={form.name} onChange={set('name')}
                     className="w-full px-4 py-2.5 rounded-xl text-sm text-slate-200 placeholder-slate-600 outline-none transition-all"
                     style={{ background: CARD2, border: `1px solid ${errors.name ? '#ef4444' : BORDER}`, colorScheme: 'dark' }}
                     onFocus={e => (e.currentTarget.style.borderColor = '#6366f1')}
@@ -165,7 +165,7 @@ export function Login() {
 
               <div>
                 <label className="block text-xs text-slate-400 mb-1.5" style={{ fontWeight: 500 }}>Email</label>
-                <input type="email" placeholder="alex@university.edu" value={form.email} onChange={set('email')}
+                <input type="email" placeholder="secret@gmail.com" value={form.email} onChange={set('email')}
                   className="w-full px-4 py-2.5 rounded-xl text-sm text-slate-200 placeholder-slate-600 outline-none transition-all"
                   style={{ background: CARD2, border: `1px solid ${errors.email ? '#ef4444' : BORDER}`, colorScheme: 'dark' }}
                   onFocus={e => (e.currentTarget.style.borderColor = '#6366f1')}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAppearance } from '../components/AppearanceProvider';
+import { useTasks, TODAY } from '../components/TaskContext';
 import { Sun, Activity, Flame, Zap, Brain, Star, CheckSquare, Clock, TrendingUp, ChevronRight } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar } from 'recharts';
 
@@ -22,13 +23,6 @@ const SUBJECT_COLORS = {
   Mathematics: '#6366f1', Physics: '#22c55e', Chemistry: '#f97316',
   Biology: '#8b5cf6', English: '#06b6d4', History: '#fbbf24',
 };
-
-const demoTasks = [
-  { id: 1, title: 'Calculus – Chapter 5: Integration',   subject: 'Mathematics', startTime: '09:00', endTime: '11:00', priority: 'high',   done: false },
-  { id: 2, title: 'Read Physics textbook Ch. 12',         subject: 'Physics',     startTime: '11:30', endTime: '13:00', priority: 'medium', done: true  },
-  { id: 3, title: 'Chemistry – reaction equations',       subject: 'Chemistry',   startTime: '14:00', endTime: '15:30', priority: 'high',   done: false },
-  { id: 4, title: 'English essay draft – Climate Change', subject: 'English',     startTime: '16:00', endTime: '17:30', priority: 'low',    done: false },
-];
 
 const recentBadges = [
   { name: 'Early Bird',   icon: <Sun      className="w-4 h-4" style={{ color: '#fbbf24' }} />, desc: 'Studied before 8 AM', color: 'rgba(251,191,36,0.15)', border: 'rgba(251,191,36,0.3)', iconBg: 'rgba(251,191,36,0.2)' },
@@ -55,15 +49,15 @@ function CustomTooltip({ active, payload, label }) {
 
 function StatCard({ icon, label, value, sub, iconBg, colors }) {
   return (
-    <div className="p-5 rounded-2xl flex flex-col gap-3 transition-all duration-200 hover:scale-[1.02]"
+    <div className="p-4 rounded-2xl flex flex-col gap-2.5 transition-all duration-200 hover:scale-[1.02]"
       style={{ background: colors.card, border: `1px solid ${colors.border}`, boxShadow: '0 4px 24px rgba(0,0,0,0.12)' }}>
       <div className="flex items-center justify-between">
-        <span className="text-sm" style={{ color: colors.textSub }}>{label}</span>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: iconBg }}>{icon}</div>
+        <span className="text-xs" style={{ color: colors.textSub }}>{label}</span>
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: iconBg }}>{icon}</div>
       </div>
       <div>
-        <div className="text-3xl" style={{ fontWeight: 700, letterSpacing: '-0.5px', color: colors.text }}>{value}</div>
-        <div className="text-xs mt-1" style={{ color: colors.textMuted }}>{sub}</div>
+        <div style={{ fontWeight: 700, letterSpacing: '-0.5px', color: colors.text, fontSize: 'clamp(1.1rem, 3.5vw, 1.5rem)' }}>{value}</div>
+        <div className="text-xs mt-0.5 truncate" style={{ color: colors.textMuted }}>{sub}</div>
       </div>
     </div>
   );
@@ -71,21 +65,27 @@ function StatCard({ icon, label, value, sub, iconBg, colors }) {
 
 // ─── Dashboard page ───────────────────────────────────────────────────────────
 export function Dashboard() {
-  const [schedule, setSchedule] = useState(demoTasks); 
+  // Live task data from shared context — same state as the Tasks page
+  const { tasks, toggle } = useTasks();
   const [chartPeriod, setChartPeriod] = useState('W');
   const { accent, colors, showStreak, showXPBar, compactMode } = useAppearance();
 
   const lvl = getLevelInfo(DEMO_XP);
 
-  const toggleTask = (taskId) => {
-    setSchedule(prev => prev.map(task => 
-      task.id === taskId ? { ...task, done: !task.done } : task
-    ));
-  };
-  
-  const completedCount = schedule.filter(t => t.done).length;
-  const totalTasks = schedule.length;
-  const productivityScore = totalTasks === 0 ? 0 : Math.round((completedCount / totalTasks) * 100);
+  // ── Today's tasks (for Today's Schedule widget) ──────────────────────────
+  const todayTasks = tasks
+    .filter(t => t.date === TODAY)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  // ── Overall productivity: uses ALL tasks so every Kanban move / toggle
+  //    instantly updates the score, not only changes to today's tasks ──────
+  const allCompleted      = tasks.filter(t => t.done).length;
+  const allTotal          = tasks.length;
+  const productivityScore = allTotal === 0 ? 0 : Math.round((allCompleted / allTotal) * 100);
+
+  // ── Today-specific counts for the stat card sub-text ─────────────────────
+  const todayDone    = todayTasks.filter(t => t.done).length;
+  const todayTotal   = todayTasks.length;
 
   // Weekly data
   const weeklyData = [
@@ -115,10 +115,10 @@ export function Dashboard() {
     <div className="min-h-full" style={{ background: colors.bg, padding: compactMode ? '0.75rem' : '1rem' }}>
 
       {/* Header */}
-      <div style={{ marginBottom: compactMode ? '1rem' : '1.5rem' }}>
+      <div style={{ marginBottom: compactMode ? '0.75rem' : '1rem' }}>
         <div className="flex items-center justify-between mb-1">
-          <h1 style={{ fontWeight: 700, fontSize: '1.25rem', letterSpacing: '-0.4px', lineHeight: 1.2, color: colors.text }}>
-            Good morning, Alex
+          <h1 style={{ fontWeight: 700, fontSize: 'clamp(1rem, 4vw, 1.25rem)', letterSpacing: '-0.4px', lineHeight: 1.2, color: colors.text }}>
+            Good morning, Moran
           </h1>
           <div className="hidden sm:flex items-center gap-3">
             {showStreak && (
@@ -139,7 +139,7 @@ export function Dashboard() {
         </div>
         
         {/* Dynamic Date */}
-        <p className="text-sm mb-6" style={{ color: colors.textMuted }}>
+        <p className="text-xs mb-4" style={{ color: colors.textMuted }}>
           {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · Your progress starts here.
         </p>
       </div>
@@ -147,23 +147,23 @@ export function Dashboard() {
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" style={{ marginBottom: compactMode ? '0.75rem' : '1rem' }}>
         <StatCard colors={colors} icon={<Clock       className="w-4 h-4 text-indigo-400" />} label="Today's Study Time"  value="2h 45m"                        sub="3 sessions today"                iconBg="rgba(99,102,241,0.15)"  />
-        <StatCard 
-          colors={colors} 
-          icon={<TrendingUp className="w-4 h-4 text-green-400" />} 
-          label="Productivity Score" 
-          value={`${productivityScore}%`} 
-          sub="Based on completed tasks" 
-          iconBg="rgba(34,197,94,0.12)" 
+        <StatCard
+          colors={colors}
+          icon={<TrendingUp className="w-4 h-4 text-green-400" />}
+          label="Productivity Score"
+          value={`${productivityScore}%`}
+          sub={`${allCompleted} of ${allTotal} tasks done`}
+          iconBg="rgba(34,197,94,0.12)"
         />
         <StatCard colors={colors} icon={<Flame       className="w-4 h-4 text-orange-400" />} label="Current Streak"      value={`${DEMO_STREAK} Days`}         sub="Personal best: 18 days"          iconBg="rgba(249,115,22,0.12)"  />
-        <StatCard colors={colors} icon={<CheckSquare className="w-4 h-4 text-purple-400" />} label="Tasks Completed" value={`${completedCount}/${totalTasks}`} sub={`${totalTasks - completedCount} remaining today`} iconBg="rgba(139,92,246,0.12)" />
+        <StatCard colors={colors} icon={<CheckSquare className="w-4 h-4 text-purple-400" />} label="Tasks Completed" value={`${allCompleted}/${allTotal}`} sub={`${allTotal - allCompleted} remaining overall`} iconBg="rgba(139,92,246,0.12)" />
       </div>
 
       {/* Main grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         {/* Study Hours Chart with W/M/Y toggle */}
-        <div className="lg:col-span-2 p-5 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+        <div className="lg:col-span-2 p-4 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="text-base" style={{ fontWeight: 600, color: colors.text }}>
@@ -198,7 +198,7 @@ export function Dashboard() {
         </div>
 
         {/* Subject Breakdown */}
-        <div className="p-5 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+        <div className="p-4 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
           <h3 className="text-base mb-4" style={{ fontWeight: 600, color: colors.text }}>Subject Breakdown</h3>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={fallbackSubjectData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
@@ -212,30 +212,42 @@ export function Dashboard() {
         </div>
 
         {/* Today's Tasks */}
-        <div className="lg:col-span-2 p-5 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+        <div className="lg:col-span-2 p-4 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base" style={{ fontWeight: 600, color: colors.text }}>Today's Schedule</h3>
+            <div>
+              <h3 className="text-base" style={{ fontWeight: 600, color: colors.text }}>Today's Schedule</h3>
+              {todayTotal > 0 && (
+                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>
+                  {todayDone} of {todayTotal} task{todayTotal !== 1 ? 's' : ''} done today
+                </p>
+              )}
+            </div>
             <a href="/app/tasks" className="text-xs flex items-center gap-1 transition-colors" style={{ fontWeight: 500, color: accent.main }}>
               View all <ChevronRight className="w-3 h-3" />
             </a>
           </div>
-          <div className="space-y-2.5">
-            {schedule.map(task => (
-              <div key={task.id} className="flex items-center gap-3 p-3 rounded-xl"
+          <div className="space-y-2">
+            {todayTasks.length === 0 ? (
+              <div className="text-center py-8" style={{ color: colors.textMuted }}>
+                <p className="text-sm">No tasks scheduled for today.</p>
+                <a href="/app/tasks" className="text-xs mt-2 block" style={{ color: accent.main, fontWeight: 500 }}>+ Add a task</a>
+              </div>
+            ) : todayTasks.map(task => (
+              <div key={task.id} className="flex items-center gap-2.5 p-3 rounded-xl"
                 style={{ background: task.done ? `rgba(${accent.rgb},0.03)` : colors.card2, border: `1px solid ${colors.border}`, opacity: task.done ? 0.55 : 1 }}>
-                
-                <div onClick={() => toggleTask(task.id)}
+
+                <div onClick={() => toggle(task.id)}
                   className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 cursor-pointer hover:scale-110 transition-all"
                   style={{ background: task.done ? (SUBJECT_COLORS[task.subject] ?? accent.main) : 'transparent', border: `2px solid ${task.done ? (SUBJECT_COLORS[task.subject] ?? accent.main) : colors.border}` }}>
                   {task.done && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                 </div>
 
-                <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ background: SUBJECT_COLORS[task.subject] ?? accent.main, opacity: 0.7 }} />
+                <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ background: SUBJECT_COLORS[task.subject] ?? accent.main, opacity: 0.7 }} />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm truncate" style={{ fontWeight: 500, color: colors.text, textDecoration: task.done ? 'line-through' : 'none' }}>{task.title}</div>
+                  <div className="text-xs truncate" style={{ fontWeight: 500, color: colors.text, textDecoration: task.done ? 'line-through' : 'none' }}>{task.title}</div>
                   <div className="text-xs" style={{ color: colors.textMuted }}>{task.startTime}–{task.endTime}</div>
                 </div>
-                <span className="text-xs px-2 py-0.5 rounded-md flex-shrink-0"
+                <span className="text-xs px-2 py-0.5 rounded-md flex-shrink-0 hidden sm:block"
                   style={{
                     background: task.priority === 'high' ? 'rgba(239,68,68,0.12)' : task.priority === 'medium' ? 'rgba(249,115,22,0.12)' : 'rgba(100,116,139,0.12)',
                     color: task.priority === 'high' ? '#f87171' : task.priority === 'medium' ? '#fb923c' : '#94a3b8',
@@ -249,7 +261,7 @@ export function Dashboard() {
         {/* Right column */}
         <div className="flex flex-col gap-4">
           {/* Level progress */}
-          <div className="p-5 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+          <div className="p-4 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${accent.main}, ${accent.light})` }}>
@@ -275,7 +287,7 @@ export function Dashboard() {
           </div>
 
           {/* Recent Badges */}
-          <div className="p-5 rounded-2xl flex-1" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+          <div className="p-4 rounded-2xl flex-1" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm" style={{ fontWeight: 600, color: colors.text }}>Recent Badges</h3>
               <a href="/app/achievements" className="text-xs flex items-center gap-1" style={{ color: accent.main }}>
@@ -297,7 +309,7 @@ export function Dashboard() {
           </div>
 
           {/* Quick Stats */}
-          <div className="p-5 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+          <div className="p-4 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
             <h3 className="text-sm mb-3" style={{ fontWeight: 600, color: colors.text }}>This Week</h3>
             <div className="grid grid-cols-2 gap-3">
               {[

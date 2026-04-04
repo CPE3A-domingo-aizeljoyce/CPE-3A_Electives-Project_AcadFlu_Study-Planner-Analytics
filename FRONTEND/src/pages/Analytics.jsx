@@ -101,20 +101,20 @@ export function Analytics() {
           { icon: <TrendingUp className="w-4 h-4 text-orange-400" />, label: 'Best Day',         value: 'Saturday', sub: '6.2 hrs average',       bg: 'rgba(249,115,22,0.12)'  },
           { icon: <Award      className="w-4 h-4 text-purple-400" />, label: 'Productivity',     value: '87%',      sub: '↑ 5% this week',        bg: 'rgba(139,92,246,0.12)'  },
         ].map(k => (
-          <div key={k.label} className="p-5 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs" style={{ color: colors.textSub }}>{k.label}</span>
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: k.bg }}>{k.icon}</div>
+          <div key={k.label} className="p-4 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs truncate mr-1" style={{ color: colors.textSub }}>{k.label}</span>
+              <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0" style={{ background: k.bg }}>{k.icon}</div>
             </div>
-            <div className="text-2xl" style={{ fontWeight: 700, color: colors.text }}>{k.value}</div>
-            <div className="text-xs mt-1" style={{ color: colors.textMuted }}>{k.sub}</div>
+            <div style={{ fontWeight: 700, color: colors.text, fontSize: 'clamp(1rem, 3vw, 1.5rem)' }}>{k.value}</div>
+            <div className="text-xs mt-0.5 truncate" style={{ color: colors.textMuted }}>{k.sub}</div>
           </div>
         ))}
       </div>
 
       {/* Charts row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
-        <div className="lg:col-span-2 p-5 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+        <div className="lg:col-span-2 p-4 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
           <div className="mb-5">
             <h3 className="text-base" style={{ fontWeight: 600, color: colors.text }}>{tab} Study Hours</h3>
             <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>
@@ -159,7 +159,7 @@ export function Analytics() {
         </div>
 
         {/* Subject Pie */}
-        <div className="p-5 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+        <div className="p-4 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
           <h3 className="text-base mb-4" style={{ fontWeight: 600, color: colors.text }}>Time by Subject</h3>
           <ResponsiveContainer width="100%" height={160}>
             <PieChart>
@@ -185,7 +185,7 @@ export function Analytics() {
 
       {/* Charts row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="p-5 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+        <div className="p-4 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
           <div className="mb-5">
             <h3 className="text-base" style={{ fontWeight: 600, color: colors.text }}>Peak Productivity Hours</h3>
             <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>Average sessions per time block</p>
@@ -203,7 +203,7 @@ export function Analytics() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-          <div className="flex items-center gap-4 mt-3">
+          <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-3">
             {[{ label: 'Peak (6+)', color: accent.main }, { label: 'Active (4–5)', color: accent.light }, { label: 'Low (<4)', color: colors.border }].map(l => (
               <div key={l.label} className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded" style={{ background: l.color }} />
@@ -213,7 +213,7 @@ export function Analytics() {
           </div>
         </div>
 
-        <div className="p-5 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+        <div className="p-4 rounded-2xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
           <h3 className="text-base mb-5" style={{ fontWeight: 600, color: colors.text }}>Subject Performance</h3>
           <div className="space-y-4">
             {subjectPie.map(s => {

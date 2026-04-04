@@ -57,10 +57,10 @@ export function Goals() {
           { label: 'Completed',    value: completedGoals,            icon: <CheckCircle2 className="w-4 h-4 text-green-400"  />, bg: 'rgba(34,197,94,0.12)',   color: '#22c55e'   },
           { label: 'In Progress',  value: goals.length - completedGoals, icon: <TrendingUp className="w-4 h-4 text-orange-400" />, bg: 'rgba(249,115,22,0.12)', color: '#f97316'   },
         ].map(s => (
-          <div key={s.label} className="p-5 rounded-2xl flex items-center gap-4" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: s.bg }}>{s.icon}</div>
+          <div key={s.label} className="p-4 rounded-2xl flex items-center gap-3" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: s.bg }}>{s.icon}</div>
             <div>
-              <div className="text-2xl" style={{ fontWeight: 700, color: s.color }}>{s.value}</div>
+              <div style={{ fontWeight: 700, color: s.color, fontSize: 'clamp(1.1rem, 3vw, 1.5rem)' }}>{s.value}</div>
               <div className="text-xs" style={{ color: colors.textSub }}>{s.label}</div>
             </div>
           </div>
