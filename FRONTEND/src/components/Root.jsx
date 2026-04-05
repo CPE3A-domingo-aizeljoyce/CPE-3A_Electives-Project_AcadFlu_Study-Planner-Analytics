@@ -1,10 +1,13 @@
 import { Outlet } from 'react-router';
 import { AppearanceProvider } from './AppearanceProvider';
+import { TaskProvider } from './TaskContext';
 
 export function Root() {
   return (
     <AppearanceProvider>
-      <Outlet />
+      <TaskProvider>
+        <Outlet />
+      </TaskProvider>
     </AppearanceProvider>
   );
 }

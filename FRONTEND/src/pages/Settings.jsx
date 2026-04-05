@@ -30,7 +30,7 @@ export function Settings() {
   } = useAppearance();
 
   const [profile, setProfile] = useState({
-    name: 'Alex Johnson', email: 'alex@studyflow.app', username: 'alexj',
+    name: 'Moran', email: 'secret@gmail.com', username: 'mrnski',
     bio: 'CS student passionate about math and physics. Aiming for a perfect GPA!',
     timezone: 'America/New_York', studyGoal: '4',
   });

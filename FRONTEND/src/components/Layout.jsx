@@ -194,7 +194,7 @@ function ProfileDropdown({ colors, accent, lvl, onClose }) {
             AJ
           </div>
           <div className="min-w-0">
-            <p className="text-sm truncate" style={{ fontWeight: 700, color: colors.text }}>Alex Johnson</p>
+            <p className="text-sm truncate" style={{ fontWeight: 700, color: colors.text }}>Moran</p>
             <p className="text-xs" style={{ color: accent.main, fontWeight: 500 }}>Pro Scholar</p>
           </div>
         </div>
@@ -383,7 +383,7 @@ function SidebarContent({ notifs, collapsed, isMobile, colors, accent, lvl, show
                   style={{ background: '#22c55e', border: `2px solid ${colors.sidebar}` }} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs truncate" style={{ fontWeight: 600, color: colors.text }}>Alex Johnson</p>
+                <p className="text-xs truncate" style={{ fontWeight: 600, color: colors.text }}>Moran</p>
                 <p className="text-xs" style={{ color: accent.main, fontWeight: 500 }}>Pro Scholar</p>
               </div>
             </button>
