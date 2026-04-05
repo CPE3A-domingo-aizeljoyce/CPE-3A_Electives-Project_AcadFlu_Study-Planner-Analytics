@@ -11,12 +11,17 @@ const initialGoals = [
 ];
 
 const goalColors = ['#6366f1','#22c55e','#f97316','#8b5cf6','#06b6d4','#fbbf24','#ec4899'];
-const subjects   = ['General','Mathematics','Physics','Chemistry','Biology','English','History','Computer Science'];
+// Added 'Others' to the subjects array
+const subjects   = ['General','Mathematics','Physics','Chemistry','Biology','English','History','Computer Science', 'Others'];
 
 export function Goals() {
   const [goals, setGoals]       = useState(initialGoals);
   const [showForm, setShowForm] = useState(false);
   const [filterPeriod, setFilter] = useState('all');
+  
+  // New state for the custom subject text input
+  const [customSubject, setCustomSubject] = useState('');
+
   const [newGoal, setNewGoal]   = useState({
     title: '', subject: 'General', current: 0, target: 10,
     unit: 'hours', period: 'weekly', color: '#6366f1', deadline: '2026-03-31',
@@ -28,7 +33,20 @@ export function Goals() {
   const filtered       = goals.filter(g => filterPeriod === 'all' || g.period === filterPeriod);
   const completedGoals = goals.filter(g => g.current >= g.target).length;
 
-  const addGoal        = () => { setGoals([...goals, { ...newGoal, id: Date.now() }]); setShowForm(false); };
+  // Get today's date in YYYY-MM-DD format for the date picker minimum limit
+  const today = new Date().toISOString().split('T')[0];
+
+  const addGoal = () => { 
+    // Logic to check if 'Others' is selected, save the custom subject instead
+    const finalSubject = newGoal.subject === 'Others' && customSubject.trim() !== '' 
+      ? customSubject 
+      : newGoal.subject;
+
+    setGoals([...goals, { ...newGoal, subject: finalSubject, id: Date.now() }]); 
+    setShowForm(false); 
+    setCustomSubject(''); // Reset custom subject input
+  };
+  
   const removeGoal     = (id) => setGoals(goals.filter(g => g.id !== id));
   const updateProgress = (id, change) =>
     setGoals(goals.map(g => g.id === id ? { ...g, current: Math.max(0, g.current + change) } : g));
@@ -43,7 +61,7 @@ export function Goals() {
           <p className="text-sm mt-0.5" style={{ color: colors.textSub }}>{completedGoals}/{goals.length} goals achieved</p>
         </div>
         <button onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl text-white text-sm hover:opacity-90 hover:scale-105"
+          className="flex items-center gap-2 px-3 py-2 rounded-xl text-white text-sm hover:opacity-90 hover:scale-105 transition-transform"
           style={{ background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, fontWeight: 600, boxShadow: `0 0 20px rgba(${accent.rgb},0.35)` }}>
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">New Goal</span>
@@ -69,16 +87,28 @@ export function Goals() {
 
       {/* Add Goal Form */}
       {showForm && (
-        <div className="mb-5 p-4 rounded-2xl" style={{ background: colors.card, border: `1px solid rgba(${accent.rgb},0.3)`, boxShadow: `0 0 20px rgba(${accent.rgb},0.08)` }}>
+        <div className="mb-5 p-4 rounded-2xl transition-all" style={{ background: colors.card, border: `1px solid rgba(${accent.rgb},0.3)`, boxShadow: `0 0 20px rgba(${accent.rgb},0.08)` }}>
           <h3 className="text-sm mb-4" style={{ fontWeight: 600, color: colors.text }}>Create New Goal</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input className="col-span-full px-3 py-2.5 rounded-xl text-sm outline-none" style={inputStyle}
               placeholder="Goal title (e.g. Study 20 hours this week)"
               value={newGoal.title} onChange={e => setNewGoal({ ...newGoal, title: e.target.value })} />
-            <select className="px-3 py-2.5 rounded-xl text-sm outline-none" style={inputStyle}
-              value={newGoal.subject} onChange={e => setNewGoal({ ...newGoal, subject: e.target.value })}>
-              {subjects.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            
+            {/* Subject Dropdown & Conditional Custom Input */}
+            <div className="flex flex-col gap-2">
+              <select className="px-3 py-2.5 rounded-xl text-sm outline-none" style={inputStyle}
+                value={newGoal.subject} onChange={e => setNewGoal({ ...newGoal, subject: e.target.value })}>
+                {subjects.map(s => (
+                  <option key={s} value={s}>{s === 'Others' ? 'Others (Please specify)' : s}</option>
+                ))}
+              </select>
+              {newGoal.subject === 'Others' && (
+                <input type="text" className="px-3 py-2.5 rounded-xl text-sm outline-none" style={inputStyle}
+                  placeholder="Type specific subject..."
+                  value={customSubject} onChange={e => setCustomSubject(e.target.value)} />
+              )}
+            </div>
+
             <select className="px-3 py-2.5 rounded-xl text-sm outline-none" style={inputStyle}
               value={newGoal.period} onChange={e => setNewGoal({ ...newGoal, period: e.target.value })}>
               <option value="weekly">Weekly</option>
@@ -90,8 +120,11 @@ export function Goals() {
               <input className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none" style={inputStyle}
                 placeholder="Unit (hrs, sessions...)" value={newGoal.unit} onChange={e => setNewGoal({ ...newGoal, unit: e.target.value })} />
             </div>
-            <input type="date" className="px-3 py-2.5 rounded-xl text-sm outline-none" style={inputStyle}
+            
+            {/* Date Input with min validation added */}
+            <input type="date" min={today} className="px-3 py-2.5 rounded-xl text-sm outline-none" style={inputStyle}
               value={newGoal.deadline} onChange={e => setNewGoal({ ...newGoal, deadline: e.target.value })} />
+            
             <div className="flex items-center gap-2">
               <span className="text-sm" style={{ color: colors.textSub }}>Color:</span>
               {goalColors.map(c => (
@@ -176,10 +209,10 @@ export function Goals() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs" style={{ color: colors.textMuted }}>{goal.target - goal.current} {goal.unit} remaining</span>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => updateProgress(goal.id, -1)} className="w-7 h-7 rounded-lg text-sm"
+                    <button onClick={() => updateProgress(goal.id, -1)} className="w-7 h-7 rounded-lg text-sm transition-colors hover:bg-white/5"
                       style={{ background: colors.card2, border: `1px solid ${colors.border}`, color: colors.textSub }}>−</button>
                     <span className="text-xs" style={{ color: colors.textMuted }}>Update</span>
-                    <button onClick={() => updateProgress(goal.id, 1)} className="w-7 h-7 rounded-lg text-sm"
+                    <button onClick={() => updateProgress(goal.id, 1)} className="w-7 h-7 rounded-lg text-sm transition-colors hover:bg-white/5"
                       style={{ background: colors.card2, border: `1px solid ${colors.border}`, color: colors.textSub }}>+</button>
                   </div>
                 </div>
