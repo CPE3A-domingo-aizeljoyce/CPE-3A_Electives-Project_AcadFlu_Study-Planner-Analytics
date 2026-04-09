@@ -230,9 +230,33 @@ export function Login() {
 
               <div className="flex items-center gap-3 my-1">
                 <div className="flex-1 h-px" style={{ background: BORDER }} />
-                <span className="text-slate-600 text-xs">or</span>
+                <span className="text-slate-600 text-xs">or continue with</span>
                 <div className="flex-1 h-px" style={{ background: BORDER }} />
               </div>
+
+              {/* Google Sign-In Button — frontend UI only, backend integration coming soon */}
+              <button
+                type="button"
+                onClick={() => {
+                  // TODO: Connect to backend Google OAuth endpoint
+                  // window.location.href = '/api/auth/google';
+                  alert('Google sign-in coming soon!');
+                }}
+                className="w-full py-3 rounded-xl text-slate-200 text-sm transition-all hover:scale-[1.02] flex items-center justify-center gap-3 group"
+                style={{ background: CARD, border: `1px solid ${BORDER}`, fontWeight: 500 }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = '#4285F4')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = BORDER)}
+              >
+                {/* Google Logo SVG */}
+                <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                  <path fill="#EA4335" d="M24 9.5c3.14 0 5.95 1.08 8.17 2.84l6.09-6.09C34.46 2.99 29.5 1 24 1 14.82 1 7.01 6.48 3.6 14.28l7.06 5.48C12.43 13.72 17.73 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.52 24.5c0-1.64-.15-3.22-.42-4.74H24v8.98h12.7c-.55 2.94-2.2 5.44-4.68 7.12l7.19 5.59C43.26 37.17 46.52 31.3 46.52 24.5z"/>
+                  <path fill="#FBBC05" d="M10.66 28.24A14.6 14.6 0 0 1 9.5 24c0-1.48.25-2.91.66-4.24l-7.06-5.48A23.93 23.93 0 0 0 .5 24c0 3.87.93 7.52 2.6 10.72l7.56-6.48z"/>
+                  <path fill="#34A853" d="M24 46.5c5.5 0 10.12-1.82 13.5-4.96l-7.19-5.59c-1.82 1.22-4.15 1.95-6.31 1.95-6.27 0-11.57-4.22-13.34-9.9l-7.56 6.48C7.01 41.52 14.82 46.5 24 46.5z"/>
+                  <path fill="none" d="M0 0h48v48H0z"/>
+                </svg>
+                {tab === 'login' ? 'Continue with Google' : 'Sign up with Google'}
+              </button>
 
               <button type="button" onClick={() => navigate('/app')}
                 className="w-full py-3 rounded-xl text-slate-300 text-sm hover:text-white transition-all hover:bg-white/5"
