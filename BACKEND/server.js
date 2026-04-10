@@ -10,19 +10,24 @@ connectDB();
 
 const app = express();
 
-// ── Security ────────────────────────────────────────────────────────────────
-app.use(helmet());
+// ── Security ──────────────────────────────────────────────────────────────────
+app.use(helmet({
+  // Default helmet sets COOP: same-origin which blocks the Google OAuth
+  // popup from posting back to your app. Must be relaxed.
+  crossOriginOpenerPolicy: { policy: 'unsafe-none' },
+}));
+
 app.use(cors({
   origin:      process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true,
 }));
-app.use(express.json({ limit: '10kb' })); // prevent large payload attacks
+app.use(express.json({ limit: '10kb' }));
 
-// ── Routes ───────────────────────────────────────────────────────────────────
+// ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 
 app.get('/', (req, res) => res.send('StudyFlow API is running ✅'));
 
-// ── Start ────────────────────────────────────────────────────────────────────
+// ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

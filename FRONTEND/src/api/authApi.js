@@ -26,12 +26,33 @@ export const loginUser = async ({ email, password }) => {
   return handleResponse(res);
 };
 
-// POST /api/auth/google — send Google credential from frontend
-export const googleAuthApi = async (credential) => {
+// POST /api/auth/google
+// FIX: was sending { credential } but backend expects { access_token }
+export const googleAuthApi = async (access_token) => {
   const res = await fetch(`${BASE_URL}/api/auth/google`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ credential }),
+    body:    JSON.stringify({ access_token }),   // ← was { credential }
+  });
+  return handleResponse(res);
+};
+
+// POST /api/auth/forgot-password ← ADDED
+export const forgotPasswordApi = async (email) => {
+  const res = await fetch(`${BASE_URL}/api/auth/forgot-password`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ email }),
+  });
+  return handleResponse(res);
+};
+
+// POST /api/auth/reset-password ← ADDED
+export const resetPasswordApi = async ({ token, password }) => {
+  const res = await fetch(`${BASE_URL}/api/auth/reset-password`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ token, password }),
   });
   return handleResponse(res);
 };
