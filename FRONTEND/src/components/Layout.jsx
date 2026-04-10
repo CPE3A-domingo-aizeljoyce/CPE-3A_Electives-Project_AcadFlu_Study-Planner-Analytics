@@ -7,6 +7,7 @@ import {
   Check, CheckCheck, User, LogOut, Palette, Menu,
 } from 'lucide-react';
 import { useAppearance } from './AppearanceProvider';
+import { logoutUser } from '../api/authApi';
 
 // ─── Reactive mobile-width hook ───────────────────────────────────────────────
 function useIsMobile(breakpoint = 640) {
@@ -225,7 +226,7 @@ function ProfileDropdown({ colors, accent, lvl, onClose }) {
         })}
       </div>
       <div className="p-2 pt-0" style={{ borderTop: `1px solid ${colors.border}` }}>
-        <button onClick={() => go('/')}
+        <button onClick={() => { logoutUser(); navigate('/'); onClose(); }}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors text-left"
           style={{ color: '#f87171', background: 'transparent' }}
           onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,.1)'}

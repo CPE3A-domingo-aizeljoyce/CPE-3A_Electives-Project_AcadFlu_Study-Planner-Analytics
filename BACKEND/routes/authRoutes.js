@@ -1,10 +1,14 @@
-// AUTH ROUTES
-// Handles user authentication (login, register, current user)
-//
-// Connected frontend:
-// - Login.jsx
-//
-// Uses:
-// - Controller: authController.js
-// - Model: User.js
-// - Middleware: authMiddleware.js (for protected routes)
+import express                                           from 'express';
+import { register, login, verifyEmail, googleAuth, getMe } from '../controllers/authController.js';
+import { protect }                                       from '../middleware/authMiddleware.js';
+import { authLimiter }                                   from '../middleware/rateLimiter.js';
+
+const router = express.Router();
+
+router.post('/register',     authLimiter, register);
+router.post('/login',        authLimiter, login);
+router.get('/verify-email',              verifyEmail);
+router.post('/google',       authLimiter, googleAuth);
+router.get('/me',            protect,     getMe);
+
+export default router;

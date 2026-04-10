@@ -87,11 +87,6 @@ export function Landing() {
             style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 0 30px rgba(99,102,241,0.4), 0 8px 24px rgba(0,0,0,0.3)', fontWeight: 600 }}>
             Start for free <ArrowRight className="w-4 h-4" />
           </button>
-          <button onClick={() => navigate('/app')}
-            className="flex items-center gap-2 px-7 py-3.5 rounded-2xl text-slate-300 text-sm hover:text-white transition-all"
-            style={{ background: '#131929', border: '1px solid #1a2540', fontWeight: 500 }}>
-            View demo →
-          </button>
         </div>
 
         <div className="flex flex-wrap justify-center gap-8 md:gap-16">
