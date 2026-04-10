@@ -1,0 +1,304 @@
+import crypto from 'crypto';
+import dns    from 'dns';
+import User              from '../models/User.js';
+import { generateToken } from '../utils/generateToken.js';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/sendEmail.js';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const safeUser = (user) => ({
+  id:         user._id,
+  name:       user.name,
+  email:      user.email,
+  avatar:     user.avatar,
+  isVerified: user.isVerified,
+});
+
+// ── POST /api/auth/register ───────────────────────────────────────────────────
+export const register = async (req, res) => {
+  try {
+    let { name, email, password } = req.body;
+
+    if (!name || !email || !password)
+      return res.status(400).json({ message: 'All fields are required.' });
+
+    name  = name.trim().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    email = email.trim().toLowerCase();
+
+    // Stronger regex — enforces valid chars and TLD of at least 2 letters
+    if (!/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email))
+      return res.status(400).json({ message: 'Please enter a valid email address.' });
+
+    // DNS MX record check — rejects domains that don't exist or can't receive email
+    // Uses Node's built-in dns module, no extra packages needed
+    const emailDomain = email.split('@')[1];
+    try {
+      const mxRecords = await dns.promises.resolveMx(emailDomain);
+      if (!mxRecords || mxRecords.length === 0) throw new Error('No MX records');
+    } catch (dnsErr) {
+      // ENOTFOUND = domain doesn't exist, ENODATA/ESERVFAIL = no mail records
+      if (['ENOTFOUND', 'ENODATA', 'ESERVFAIL'].includes(dnsErr.code)) {
+        return res.status(400).json({
+          message: `The email domain "@${emailDomain}" does not exist. Please use a valid email address.`,
+        });
+      }
+      // Any other DNS error (timeout, network) — allow through, don't block real users
+      console.warn(`DNS check skipped for ${emailDomain}:`, dnsErr.message);
+    }
+
+    if (password.length < 8)
+      return res.status(400).json({ message: 'Password must be at least 8 characters.' });
+    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password))
+      return res.status(400).json({ message: 'Password must include uppercase, lowercase, and a number.' });
+
+    const existing = await User.findOne({ email });
+    if (existing) {
+      if (!existing.isVerified) {
+        const rawToken = existing.createVerificationToken();
+        await existing.save();
+        const url = `${process.env.SERVER_URL}/api/auth/verify-email?token=${rawToken}`;
+        try {
+          await sendVerificationEmail({ name: existing.name, email: existing.email, verificationUrl: url });
+        } catch (emailErr) {
+          console.error('Resend verification email failed:', emailErr.message);
+        }
+        return res.status(200).json({
+          message:              'Account already exists but is not verified. We sent a new verification email.',
+          requiresVerification: true,
+        });
+      }
+      return res.status(409).json({ message: 'An account with this email already exists.' });
+    }
+
+    const user     = await User.create({ name, email, password });
+    const rawToken = user.createVerificationToken();
+    await user.save();
+
+    const url = `${process.env.SERVER_URL}/api/auth/verify-email?token=${rawToken}`;
+
+    try {
+      await sendVerificationEmail({ name: user.name, email: user.email, verificationUrl: url });
+    } catch (emailErr) {
+      console.error('Verification email failed to send:', emailErr.message);
+      return res.status(201).json({
+        message:              'Account created! We had trouble sending the verification email — please try signing up again to resend it.',
+        requiresVerification: true,
+      });
+    }
+
+    res.status(201).json({
+      message:              'Account created! Please check your email to verify your account.',
+      requiresVerification: true,
+    });
+
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ message: 'Server error. Please try again.' });
+  }
+};
+
+// ── POST /api/auth/login ──────────────────────────────────────────────────────
+export const login = async (req, res) => {
+  try {
+    let { email, password } = req.body;
+
+    if (!email || !password)
+      return res.status(400).json({ message: 'Email and password are required.' });
+
+    email = email.trim().toLowerCase();
+
+    const user = await User.findOne({ email }).select('+password');
+
+    // Specific messages — intentional for student app UX
+    if (!user)
+      return res.status(404).json({ message: 'No account found with that email address.' });
+
+    if (!user.password)
+      return res.status(400).json({
+        message: "This account uses Google sign-in. Please click 'Continue with Google' instead.",
+      });
+
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch)
+      return res.status(401).json({ message: 'Incorrect password. Please try again.' });
+
+    if (!user.isVerified)
+      return res.status(403).json({
+        message:              'Please verify your email before logging in. Check your inbox.',
+        requiresVerification: true,
+      });
+
+    const token = generateToken(user._id);
+    res.status(200).json({ token, user: safeUser(user) });
+
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ message: 'Server error. Please try again.' });
+  }
+};
+
+// ── GET /api/auth/verify-email?token=xxx ─────────────────────────────────────
+export const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token)
+      return res.redirect(`${process.env.CLIENT_URL}/login?error=invalid_token`);
+
+    const hashed = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await User.findOne({
+      verificationToken:   hashed,
+      verificationExpires: { $gt: Date.now() },
+    });
+
+    if (!user)
+      return res.redirect(`${process.env.CLIENT_URL}/login?error=invalid_token`);
+
+    user.isVerified          = true;
+    user.verificationToken   = undefined;
+    user.verificationExpires = undefined;
+    await user.save();
+
+    const jwtToken = generateToken(user._id);
+    res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${jwtToken}&verified=true`);
+
+  } catch (err) {
+    console.error('Verify email error:', err);
+    res.redirect(`${process.env.CLIENT_URL}/login?error=server_error`);
+  }
+};
+
+// ── POST /api/auth/google ─────────────────────────────────────────────────────
+export const googleAuth = async (req, res) => {
+  try {
+    const { access_token } = req.body;
+
+    if (!access_token)
+      return res.status(400).json({ message: 'Google access token is required.' });
+
+    const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+
+    if (!googleRes.ok)
+      return res.status(401).json({ message: 'Invalid Google token. Please try again.' });
+
+    const { sub: googleId, email, name, picture } = await googleRes.json();
+
+    if (!email)
+      return res.status(400).json({ message: 'Could not retrieve email from Google account.' });
+
+    let user = await User.findOne({ googleId });
+
+    if (!user) {
+      user = await User.findOne({ email });
+      if (user) {
+        user.googleId   = googleId;
+        user.avatar     = user.avatar || picture;
+        user.isVerified = true;
+        await user.save();
+      } else {
+        user = await User.create({ name, email, googleId, avatar: picture, isVerified: true });
+      }
+    }
+
+    const token = generateToken(user._id);
+    res.status(200).json({ token, user: safeUser(user) });
+
+  } catch (err) {
+    console.error('Google auth error:', err);
+    res.status(500).json({ message: 'Google sign-in failed. Please try again.' });
+  }
+};
+
+// ── POST /api/auth/forgot-password ───────────────────────────────────────────
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email)
+      return res.status(400).json({ message: 'Email is required.' });
+
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+
+    // Always return the same message — prevents email enumeration
+    const safeMsg = 'If that email is registered, you will receive a reset link shortly.';
+
+    if (!user) return res.status(200).json({ message: safeMsg });
+
+    // Google-only users have no password to reset
+    if (user.googleId && !user.password)
+      return res.status(200).json({ message: safeMsg });
+
+    const rawToken = user.createPasswordResetToken();
+    await user.save();
+
+    const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${rawToken}`;
+
+    try {
+      await sendPasswordResetEmail({ name: user.name, email: user.email, resetUrl });
+    } catch (emailErr) {
+      console.error('Password reset email failed to send:', emailErr.message);
+    }
+
+    res.status(200).json({ message: safeMsg });
+
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({ message: 'Server error. Please try again.' });
+  }
+};
+
+// ── POST /api/auth/reset-password ────────────────────────────────────────────
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password)
+      return res.status(400).json({ message: 'Token and new password are required.' });
+
+    if (password.length < 8)
+      return res.status(400).json({ message: 'Password must be at least 8 characters.' });
+
+    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password))
+      return res.status(400).json({ message: 'Password must include uppercase, lowercase, and a number.' });
+
+    const hashed = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await User.findOne({
+      resetPasswordToken:   hashed,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user)
+      return res.status(400).json({ message: 'Password reset link is invalid or has expired.' });
+
+    user.password             = password;
+    user.resetPasswordToken   = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    const jwtToken = generateToken(user._id);
+    res.status(200).json({
+      message: 'Password reset successful!',
+      token:   jwtToken,
+      user:    safeUser(user),
+    });
+
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ message: 'Server error. Please try again.' });
+  }
+};
+
+// ── GET /api/auth/me ──────────────────────────────────────────────────────────
+export const getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+    res.status(200).json({ user: safeUser(user) });
+  } catch (err) {
+    console.error('GetMe error:', err);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
