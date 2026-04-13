@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppearance } from '../components/AppearanceProvider';
 import { Plus, Target, Trash2, CheckCircle2, TrendingUp, Calendar, Edit } from 'lucide-react';
-import { createNewGoal, fetchGoals, updateGoal, editFullGoal } from '../api/goalApi';
+import { createNewGoal, fetchGoals, updateGoal, editFullGoal, deleteGoalAPI } from '../api/goalApi';
 
 const goalColors = ['#6366f1','#22c55e','#f97316','#8b5cf6','#06b6d4','#fbbf24','#ec4899'];
 const subjects   = ['General','Mathematics','Physics','Chemistry','Biology','English','History','Computer Science', 'Others'];
@@ -60,16 +60,15 @@ export function Goals() {
       ? customSubject 
       : newGoal.subject;
 
-    // --- BAGONG LOGIC: AUTO-ADJUST CURRENT PROGRESS ---
     const existingGoal = editingId ? goals.find(g => g.id === editingId) : null;
     let adjustedCurrent = existingGoal ? existingGoal.current : 0;
     const newTarget = Number(newGoal.target);
 
-    // Kung binabaan ang target at sumobra ang current, i-cap natin para hindi mag-10/9
+   
     if (adjustedCurrent > newTarget) {
       adjustedCurrent = newTarget; 
     }
-    // --------------------------------------------------
+
 
     try {
       const goalData = {
@@ -77,7 +76,7 @@ export function Goals() {
         category: finalSubject,
         timeframe: newGoal.period,
         targetAmount: newTarget,
-        currentAmount: adjustedCurrent, // Ipasa natin ang tamang current sa backend
+        currentAmount: adjustedCurrent, 
         unit: newGoal.unit,
         deadline: newGoal.deadline,
         color: newGoal.color
@@ -92,7 +91,7 @@ export function Goals() {
           title: updatedGoal.title,
           subject: updatedGoal.category,
           target: updatedGoal.targetAmount,
-          current: updatedGoal.currentAmount, // I-update ang current sa UI
+          current: updatedGoal.currentAmount, 
           unit: updatedGoal.unit,
           period: updatedGoal.timeframe,
           color: updatedGoal.color,
@@ -127,7 +126,17 @@ export function Goals() {
     }
   };
 
-  const removeGoal = (id) => setGoals(goals.filter(g => g.id !== id));
+  const removeGoal = async (id) => {
+    if (window.confirm("Are you sure you want to delete this goal?")) {
+      try {
+        await deleteGoalAPI(id);
+        setGoals(goals.filter(g => g.id !== id));
+      } catch (error) {
+        console.error("Error deleting goal:", error);
+        alert("Cannot be deleted. Make sure backend is running.");
+      }
+    }
+  };
 
   const updateProgress = async (id, change) => {
     const goalToUpdate = goals.find(g => g.id === id);

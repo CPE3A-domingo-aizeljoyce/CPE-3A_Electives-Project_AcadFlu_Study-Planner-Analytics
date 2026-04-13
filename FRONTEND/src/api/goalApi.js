@@ -29,3 +29,7 @@ export const editFullGoal = async (goalId, goalData) => {
   const response = await axios.put(`${API_URL}${goalId}`, goalData, getConfig());
   return response.data;
 };
+export const deleteGoalAPI = async (goalId) => {
+  const response = await axios.delete(`${API_URL}${goalId}`, getConfig());
+  return response.data;
+};
