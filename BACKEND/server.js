@@ -6,6 +6,7 @@ import connectDB  from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import goalRoutes from './routes/goalRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
 
 connectDB();
 
@@ -25,6 +26,7 @@ app.use(express.json({ limit: '10kb' }));
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/goals', goalRoutes);
+app.use('/api/analytics', analyticsRoutes);
 app.use('/api/notifications', notificationRoutes);
 
 app.get('/', (req, res) => res.send('StudyFlow API is running ✅'));
