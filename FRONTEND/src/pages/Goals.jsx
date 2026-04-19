@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAppearance } from '../components/AppearanceProvider';
+import { useNotificationRefresh } from '../components/NotificationRefreshContext';
 import { Plus, Target, Trash2, CheckCircle2, TrendingUp, Calendar, Edit, AlertCircle } from 'lucide-react';
 import { createNewGoal, fetchGoals, updateGoal, editFullGoal, deleteGoalAPI } from '../api/goalApi';
-import { useNotificationRefresh } from '../components/NotificationRefreshContext';
-import { Plus, Target, Trash2, CheckCircle2, TrendingUp, Calendar } from 'lucide-react';
-import { createNewGoal, fetchGoals, updateGoal } from '../api/goalApi';
 
 const goalColors = ['#6366f1','#22c55e','#f97316','#8b5cf6','#06b6d4','#fbbf24','#ec4899'];
 const subjects   = ['General','Mathematics','Physics','Chemistry','Biology','English','History','Computer Science', 'Others'];

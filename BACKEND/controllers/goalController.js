@@ -153,7 +153,6 @@ export const updateGoalProgress = async (req, res) => {
 
     const isNowCompleted = goal.currentAmount >= goal.targetAmount;
 
-    const updatedGoal = await goal.save();
 
     // ─── Milestone Notifications ───────────────────────────────────────────
 
