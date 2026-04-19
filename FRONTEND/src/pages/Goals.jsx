@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAppearance } from '../components/AppearanceProvider';
+import { useNotificationRefresh } from '../components/NotificationRefreshContext';
 import { Plus, Target, Trash2, CheckCircle2, TrendingUp, Calendar, Edit, AlertCircle } from 'lucide-react';
 import { createNewGoal, fetchGoals, updateGoal, editFullGoal, deleteGoalAPI } from '../api/goalApi';
 
