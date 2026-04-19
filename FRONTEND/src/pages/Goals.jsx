@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppearance } from '../components/AppearanceProvider';
+import { Plus, Target, Trash2, CheckCircle2, TrendingUp, Calendar, Edit, AlertCircle } from 'lucide-react';
+import { createNewGoal, fetchGoals, updateGoal, editFullGoal, deleteGoalAPI } from '../api/goalApi';
 import { useNotificationRefresh } from '../components/NotificationRefreshContext';
 import { Plus, Target, Trash2, CheckCircle2, TrendingUp, Calendar } from 'lucide-react';
 import { createNewGoal, fetchGoals, updateGoal } from '../api/goalApi';
@@ -12,20 +14,33 @@ export function Goals() {
   const [showForm, setShowForm] = useState(false);
   const [filterPeriod, setFilter] = useState('all');
   const [customSubject, setCustomSubject] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [alertMsg, setAlertMsg] = useState(null); 
+  const [goalToDelete, setGoalToDelete] = useState(null);
+
+  const today = new Date().toISOString().split('T')[0];
   const { refetch: refetchNotifications } = useNotificationRefresh();
 
   const [newGoal, setNewGoal] = useState({
     title: '',
     subject: 'General',
-    period: 'weekly',
+    period: 'daily', 
     target: '',
     unit: 'hours',
+    startDate: today, // Added Start Date
     deadline: '',
     color: '#6366f1'
   });
 
   const { colors, accent } = useAppearance();
   const inputStyle = { background: colors.card2, border: `1px solid ${colors.border}`, color: colors.text, colorScheme: colors.inputScheme };
+
+  const displayAlert = (type, message) => {
+    setAlertMsg({ type, message });
+    setTimeout(() => {
+      setAlertMsg(null);
+    }, 3000); 
+  };
 
   useEffect(() => {
     const getMyGoals = async () => {
@@ -40,6 +55,7 @@ export function Goals() {
           unit: g.unit,
           period: g.timeframe,
           color: g.color,
+          startDate: g.startDate ? g.startDate.split('T')[0] : '', 
           deadline: g.deadline ? g.deadline.split('T')[0] : ''
         }));
         setGoals(formattedGoals);
@@ -56,61 +72,104 @@ export function Goals() {
 
   const filtered       = goals.filter(g => filterPeriod === 'all' || g.period === filterPeriod);
   const completedGoals = goals.filter(g => g.current >= g.target).length;
-  const today          = new Date().toISOString().split('T')[0];
 
   const submitHandler = async (e) => {
     if(e) e.preventDefault(); 
+
+    if (!newGoal.title || !newGoal.target) {
+       displayAlert('error', 'Please fill in the title and target amount!');
+       return;
+    }
 
     const finalSubject = newGoal.subject === 'Others' && customSubject.trim() !== '' 
       ? customSubject 
       : newGoal.subject;
 
+    const existingGoal = editingId ? goals.find(g => g.id === editingId) : null;
+    let adjustedCurrent = existingGoal ? existingGoal.current : 0;
+    const newTarget = Number(newGoal.target);
+
+    if (adjustedCurrent > newTarget) {
+      adjustedCurrent = newTarget; 
+    }
+
     try {
-     
       const goalData = {
         title: newGoal.title,
         category: finalSubject,
         timeframe: newGoal.period,
-        targetAmount: Number(newGoal.target),
+        targetAmount: newTarget,
+        currentAmount: adjustedCurrent,
         unit: newGoal.unit,
+        startDate: newGoal.period === 'daily' ? newGoal.startDate : undefined, 
         deadline: newGoal.deadline,
         color: newGoal.color
       };
-      const savedGoal = await createNewGoal(goalData);
-      alert('Goal Created Successfully!');
 
-      const newFormattedGoal = {
-        id: savedGoal._id,
-        title: savedGoal.title,
-        subject: savedGoal.category,
-        current: savedGoal.currentAmount,
-        target: savedGoal.targetAmount,
-        unit: savedGoal.unit,
-        period: savedGoal.timeframe,
-        color: savedGoal.color,
-        deadline: savedGoal.deadline ? savedGoal.deadline.split('T')[0] : ''
-      };
+      if (editingId) {
+        const updatedGoal = await editFullGoal(editingId, goalData);
+        displayAlert('success', 'Goal Updated Successfully!');
 
-      setGoals([...goals, newFormattedGoal]);
+        setGoals(goals.map(g => g.id === editingId ? {
+          ...g,
+          title: updatedGoal.title,
+          subject: updatedGoal.category,
+          target: updatedGoal.targetAmount,
+          current: updatedGoal.currentAmount, 
+          unit: updatedGoal.unit,
+          period: updatedGoal.timeframe,
+          color: updatedGoal.color,
+          startDate: updatedGoal.startDate ? updatedGoal.startDate.split('T')[0] : '',
+          deadline: updatedGoal.deadline ? updatedGoal.deadline.split('T')[0] : ''
+        } : g));
+      } else {
+        const savedGoal = await createNewGoal(goalData);
+        displayAlert('success', 'Goal Created Successfully!');
+
+        const newFormattedGoal = {
+          id: savedGoal._id,
+          title: savedGoal.title,
+          subject: savedGoal.category,
+          current: savedGoal.currentAmount,
+          target: savedGoal.targetAmount,
+          unit: savedGoal.unit,
+          period: savedGoal.timeframe,
+          color: savedGoal.color,
+          startDate: savedGoal.startDate ? savedGoal.startDate.split('T')[0] : '',
+          deadline: savedGoal.deadline ? savedGoal.deadline.split('T')[0] : ''
+        };
+        setGoals([...goals, newFormattedGoal]);
+      }
 
       setShowForm(false);
+      setEditingId(null);
       setCustomSubject('');
-      setNewGoal({ title: '', subject: 'General', period: 'weekly', target: '', unit: 'hours', deadline: '', color: '#6366f1' });
+      setNewGoal({ title: '', subject: 'General', period: 'daily', target: '', unit: 'hours', startDate: today, deadline: '', color: '#6366f1' });
 
     } catch (error) {
       console.error(error);
-      alert('Error saving. Make sure your backend is running!');
+      displayAlert('error', 'Error saving. Make sure your backend is running!');
     }
   };
 
-  const removeGoal     = (id) => setGoals(goals.filter(g => g.id !== id));
+  const confirmDelete = async () => {
+    if (!goalToDelete) return;
+    try {
+      await deleteGoalAPI(goalToDelete);
+      setGoals(goals.filter(g => g.id !== goalToDelete));
+      displayAlert('success', 'Goal Deleted!');
+    } catch (error) {
+      console.error("Error deleting goal:", error);
+      displayAlert('error', 'Hindi mabura sa database. Make sure backend is running.');
+    }
+    setGoalToDelete(null); 
+  };
 
   const updateProgress = async (id, change) => {
     const goalToUpdate = goals.find(g => g.id === id);
     if (!goalToUpdate) return;
 
     const newAmount = Math.max(0, goalToUpdate.current + change);
-
     setGoals(goals.map(g => g.id === id ? { ...g, current: newAmount } : g));
 
     try {
@@ -121,11 +180,31 @@ export function Goals() {
       setTimeout(() => refetchNotifications(), 500);
     } catch (error) {
       console.error("Database progress not saved:", error);
+      displayAlert('error', 'Progress not saved in backend.');
     }
   };
 
+  const handleEditClick = (goal) => {
+    setEditingId(goal.id);
+    setNewGoal({
+      title: goal.title,
+      subject: subjects.includes(goal.subject) ? goal.subject : 'Others',
+      period: goal.period,
+      target: goal.target,
+      unit: goal.unit,
+      startDate: goal.startDate || today,
+      deadline: goal.deadline,
+      color: goal.color
+    });
+    if (!subjects.includes(goal.subject)) {
+      setCustomSubject(goal.subject);
+    }
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' }); 
+  };
+
   return (
-    <div className="p-4 min-h-full" style={{ background: colors.bg }}>
+    <div className="p-4 min-h-full relative" style={{ background: colors.bg }}>
 
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
@@ -133,13 +212,26 @@ export function Goals() {
           <h1 className="text-2xl" style={{ fontWeight: 700, letterSpacing: '-0.4px', color: colors.text }}>Goals</h1>
           <p className="text-sm mt-0.5" style={{ color: colors.textSub }}>{completedGoals}/{goals.length} goals achieved</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)}
+        <button onClick={() => { setShowForm(!showForm); setEditingId(null); setNewGoal({ title: '', subject: 'General', period: 'daily', target: '', unit: 'hours', startDate: today, deadline: '', color: '#6366f1' }); }}
           className="flex items-center gap-2 px-3 py-2 rounded-xl text-white text-sm hover:opacity-90 hover:scale-105 transition-transform"
           style={{ background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, fontWeight: 600, boxShadow: `0 0 20px rgba(${accent.rgb},0.35)` }}>
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">New Goal</span>
         </button>
       </div>
+
+      {/* INLINE ALERT MESSAGE */}
+      {alertMsg && (
+        <div className="mb-5 p-4 rounded-xl flex items-center gap-3 transition-all animate-in fade-in slide-in-from-top-2"
+          style={{ 
+            background: alertMsg.type === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)', 
+            border: `1px solid ${alertMsg.type === 'error' ? 'rgba(239, 68, 68, 0.5)' : 'rgba(34, 197, 94, 0.5)'}`,
+            color: alertMsg.type === 'error' ? '#ef4444' : '#22c55e'
+          }}>
+          {alertMsg.type === 'error' ? <AlertCircle className="w-5 h-5 shrink-0" /> : <CheckCircle2 className="w-5 h-5 shrink-0" />}
+          <span className="text-sm" style={{ fontWeight: 600 }}>{alertMsg.message}</span>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
@@ -158,15 +250,20 @@ export function Goals() {
         ))}
       </div>
 
-      {/* Add Goal Form */}
+      {/* Add/Edit Goal Form */}
       {showForm && (
         <div className="mb-5 p-4 rounded-2xl transition-all" style={{ background: colors.card, border: `1px solid rgba(${accent.rgb},0.3)`, boxShadow: `0 0 20px rgba(${accent.rgb},0.08)` }}>
-          <h3 className="text-sm mb-4" style={{ fontWeight: 600, color: colors.text }}>Create New Goal</h3>
+          <h3 className="text-sm mb-4" style={{ fontWeight: 600, color: colors.text }}>
+            {editingId ? 'Edit Goal' : 'Create New Goal'}
+          </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            
+            {/* Title */}
             <input className="col-span-1 sm:col-span-2 px-3 py-2.5 rounded-xl text-sm outline-none w-full" style={inputStyle}
               placeholder="Goal title (e.g. Study 20 hours this week)"
               value={newGoal.title} onChange={e => setNewGoal({ ...newGoal, title: e.target.value })} />
             
+            {/* Subject Dropdown */}
             <div className="flex flex-col gap-2 w-full">
               <select className="px-3 py-2.5 rounded-xl text-sm outline-none w-full" style={inputStyle}
                 value={newGoal.subject} onChange={e => setNewGoal({ ...newGoal, subject: e.target.value })}>
@@ -181,23 +278,56 @@ export function Goals() {
               )}
             </div>
 
+            {/* Period Dropdown */}
             <select className="px-3 py-2.5 rounded-xl text-sm outline-none w-full" style={inputStyle}
               value={newGoal.period} onChange={e => setNewGoal({ ...newGoal, period: e.target.value })}>
+              <option value="daily">Daily</option>
               <option value="weekly">Weekly</option>
               <option value="monthly">Monthly</option>
             </select>
             
-            <div className="flex flex-col xs:flex-row gap-2 w-full">
+            {/* Target & Unit */}
+            <div className="col-span-1 sm:col-span-2 flex flex-col xs:flex-row gap-2 w-full">
               <input type="number" className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none w-full" style={inputStyle}
-                placeholder="Target" value={newGoal.target} onChange={e => setNewGoal({ ...newGoal, target: e.target.value })} />
+                placeholder="Target Amount" value={newGoal.target} onChange={e => setNewGoal({ ...newGoal, target: e.target.value })} />
               <input className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none w-full" style={inputStyle}
                 placeholder="Unit (hrs, sessions...)" value={newGoal.unit} onChange={e => setNewGoal({ ...newGoal, unit: e.target.value })} />
             </div>
             
-            <input type="date" min={today} className="px-3 py-2.5 rounded-xl text-sm outline-none w-full" style={inputStyle}
-              value={newGoal.deadline} onChange={e => setNewGoal({ ...newGoal, deadline: e.target.value })} />
+            {/* --- DYNAMIC DATE AREA (FROM & TO) --- */}
+            <div className="col-span-1 sm:col-span-2 p-3 rounded-xl transition-all" style={{ background: `rgba(${accent.rgb}, 0.05)`, border: `1px dashed rgba(${accent.rgb}, 0.4)` }}>
+              <p className="text-xs mb-2 flex items-center gap-1.5" style={{ color: accent.main, fontWeight: 700 }}>
+                <Calendar className="w-3.5 h-3.5" />
+                {newGoal.period === 'daily' ? 'Set Daily Goal Range' : newGoal.period === 'weekly' ? 'Set Weekly Deadline' : 'Set Monthly Deadline'}
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                {newGoal.period === 'daily' && (
+                  <div className="flex-1 flex flex-col gap-1">
+                    <span className="text-[10px] uppercase tracking-wider" style={{ color: colors.textSub, fontWeight: 600 }}>From</span>
+                    <input type="date" className="px-3 py-2 rounded-lg text-sm w-full outline-none" style={inputStyle}
+                      value={newGoal.startDate} onChange={e => setNewGoal({ ...newGoal, startDate: e.target.value })} />
+                  </div>
+                )}
+                <div className="flex-1 flex flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-wider" style={{ color: colors.textSub, fontWeight: 600 }}>
+                    {newGoal.period === 'daily' ? 'To' : 'Target Date'}
+                  </span>
+                  <input type="date" min={newGoal.period === 'daily' ? newGoal.startDate : today} className="px-3 py-2 rounded-lg text-sm w-full outline-none" style={inputStyle}
+                    value={newGoal.deadline} onChange={e => setNewGoal({ ...newGoal, deadline: e.target.value })} />
+                </div>
+              </div>
+
+              {/* Instruction Text for weekly and monthly */}
+              {newGoal.period !== 'daily' && (
+                <p className="text-[11px] mt-2 italic" style={{ color: colors.textMuted }}>
+                  * Select the target date when your {newGoal.period} cycle ends.
+                </p>
+              )}
+            </div>
             
-            <div className="flex items-center gap-2 flex-wrap w-full">
+            {/* Colors */}
+            <div className="col-span-1 sm:col-span-2 flex items-center gap-2 flex-wrap w-full mt-1">
               <span className="text-sm" style={{ color: colors.textSub }}>Color:</span>
               <div className="flex gap-1.5 flex-wrap">
                 {goalColors.map(c => (
@@ -208,13 +338,14 @@ export function Goals() {
               </div>
             </div>
           </div>
-          <div className="flex gap-2 mt-4">
-            {/* Tinawag na dito ang submitHandler */}
+
+          {/* Form Actions */}
+          <div className="flex gap-2 mt-5">
             <button onClick={submitHandler} className="px-5 py-2 rounded-xl text-white text-sm hover:opacity-90"
               style={{ background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, fontWeight: 600 }}>
-              Create Goal
+              {editingId ? 'Save Changes' : 'Create Goal'}
             </button>
-            <button onClick={() => setShowForm(false)} className="px-5 py-2 rounded-xl text-sm"
+            <button onClick={() => { setShowForm(false); setEditingId(null); setCustomSubject(''); setNewGoal({ title: '', subject: 'General', period: 'daily', target: '', unit: 'hours', startDate: today, deadline: '', color: '#6366f1' }); }} className="px-5 py-2 rounded-xl text-sm"
               style={{ background: colors.card2, border: `1px solid ${colors.border}`, color: colors.textSub }}>
               Cancel
             </button>
@@ -224,12 +355,12 @@ export function Goals() {
 
       {/* Filter */}
       <div className="flex gap-2 mb-4 flex-wrap">
-        {['all','weekly','monthly'].map(p => (
+        {['all','daily','weekly','monthly'].map(p => (
           <button key={p} onClick={() => setFilter(p)} className="px-4 py-2 rounded-xl text-sm capitalize transition-all"
             style={filterPeriod === p
               ? { background: `rgba(${accent.rgb},0.2)`, color: accent.light, border: `1px solid rgba(${accent.rgb},0.35)`, fontWeight: 600 }
               : { background: colors.card, border: `1px solid ${colors.border}`, color: colors.textMuted }}>
-            {p === 'all' ? 'All Goals' : p.charAt(0).toUpperCase() + p.slice(1)}
+            {p === 'all' ? 'All Goals' : p}
           </button>
         ))}
       </div>
@@ -255,7 +386,8 @@ export function Goals() {
                       <span className="text-xs px-2 py-0.5 rounded-md" style={{ background: `${goal.color}20`, color: goal.color, fontWeight: 500 }}>{goal.subject}</span>
                       <div className="flex items-center gap-1 text-xs" style={{ color: colors.textMuted }}>
                         <Calendar className="w-3 h-3" />
-                        <span>{goal.period} · {goal.deadline}</span>
+                        {/* UPDATE: Ipapakita rito yung Range kapag Daily */}
+                        <span>{goal.period} · {goal.period === 'daily' && goal.startDate ? `${goal.startDate} to ` : ''}{goal.deadline || 'No target date'}</span>
                       </div>
                     </div>
                   </div>
@@ -267,7 +399,14 @@ export function Goals() {
                     </div>
                     <div className="text-xs" style={{ color: goal.color, fontWeight: 600 }}>{pct}%</div>
                   </div>
-                  <button onClick={() => removeGoal(goal.id)}
+                  
+                  <button onClick={() => handleEditClick(goal)}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:text-blue-400 hover:bg-blue-400/10 transition-all"
+                    style={{ color: colors.textMuted }}>
+                    <Edit className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button onClick={() => setGoalToDelete(goal.id)}
                     className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:text-red-400 hover:bg-red-400/10 transition-all"
                     style={{ color: colors.textMuted }}>
                     <Trash2 className="w-3.5 h-3.5" />
@@ -301,6 +440,37 @@ export function Goals() {
           );
         })}
       </div>
+
+      {/* CUSTOM DELETE CONFIRMATION MODAL */}
+      {goalToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-all animate-in fade-in" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+          <div className="p-6 w-full max-w-sm rounded-2xl shadow-2xl transition-all animate-in zoom-in-95"
+               style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+            <div className="flex flex-col items-center text-center gap-4">
+              <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
+                <AlertCircle className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="text-xl" style={{ fontWeight: 700, color: colors.text }}>Delete Goal?</h3>
+                <p className="text-sm mt-2" style={{ color: colors.textSub }}>
+                  Are you sure you want to delete this goal? This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex gap-3 w-full mt-2">
+                <button onClick={() => setGoalToDelete(null)} className="flex-1 px-4 py-2.5 rounded-xl text-sm transition-colors"
+                        style={{ background: colors.card2, border: `1px solid ${colors.border}`, color: colors.text, fontWeight: 600 }}>
+                  Cancel
+                </button>
+                <button onClick={confirmDelete} className="flex-1 px-4 py-2.5 rounded-xl text-sm text-white transition-all hover:opacity-90"
+                        style={{ background: '#ef4444', fontWeight: 600, boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)' }}>
+                  Yes, Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
