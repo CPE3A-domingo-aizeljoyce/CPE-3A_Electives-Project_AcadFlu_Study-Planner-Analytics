@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAppearance } from '../components/AppearanceProvider';
+import { useNotificationRefresh } from '../components/NotificationRefreshContext';
 import { Plus, Target, Trash2, CheckCircle2, TrendingUp, Calendar } from 'lucide-react';
 import { createNewGoal, fetchGoals, updateGoal } from '../api/goalApi';
 
@@ -7,10 +8,11 @@ const goalColors = ['#6366f1','#22c55e','#f97316','#8b5cf6','#06b6d4','#fbbf24',
 const subjects   = ['General','Mathematics','Physics','Chemistry','Biology','English','History','Computer Science', 'Others'];
 
 export function Goals() {
-  const [goals, setGoals] = useState([]); 
+  const [goals, setGoals] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [filterPeriod, setFilter] = useState('all');
   const [customSubject, setCustomSubject] = useState('');
+  const { refetch: refetchNotifications } = useNotificationRefresh();
 
   const [newGoal, setNewGoal] = useState({
     title: '',
@@ -41,12 +43,16 @@ export function Goals() {
           deadline: g.deadline ? g.deadline.split('T')[0] : ''
         }));
         setGoals(formattedGoals);
+
+        // Auto-fetch reminder notifications (stale, deadline, overdue)
+        // Backend creates these when getGoals() is called
+        setTimeout(() => refetchNotifications(), 300);
       } catch (error) {
         console.error("Error loading goals:", error);
       }
     };
     getMyGoals();
-  }, []);
+  }, [refetchNotifications]);
 
   const filtered       = goals.filter(g => filterPeriod === 'all' || g.period === filterPeriod);
   const completedGoals = goals.filter(g => g.current >= g.target).length;
@@ -109,6 +115,10 @@ export function Goals() {
 
     try {
       await updateGoal(id, newAmount);
+
+      // Refetch notifications after ANY goal progress update
+      // Backend creates notifications for milestones: 25%, 50%, 75%, 90%, 100%
+      setTimeout(() => refetchNotifications(), 500);
     } catch (error) {
       console.error("Database progress not saved:", error);
     }

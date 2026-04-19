@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import {
   LayoutDashboard, ListTodo, Timer, BarChart2, Target, BookOpen, Trophy,
@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { useAppearance } from './AppearanceProvider';
 import { logoutUser } from '../api/authApi';
+import * as notificationApi from '../api/notificationApi.js';
+import { NotificationRefreshContext } from './NotificationRefreshContext';
 
 // ─── Reactive mobile-width hook ───────────────────────────────────────────────
 function useIsMobile(breakpoint = 640) {
@@ -52,20 +54,53 @@ const NAV_ITEMS = [
   { to: '/app/achievements', icon: Trophy,          label: 'Achievements'           },
 ];
 
-const SEED_NOTIFS = [
-  { id: 1, icon: Award,       color: '#fbbf24', title: 'Badge Unlocked!',           body: 'You earned the "Week Warrior" badge.',        time: '2m ago',    read: false },
-  { id: 2, icon: Flame,       color: '#f97316', title: 'Streak at risk!',            body: 'Study today to keep your 12-day streak.',     time: '1h ago',    read: false },
-  { id: 3, icon: Zap,         color: '#6366f1', title: 'Level up incoming!',         body: 'Only 160 XP left to reach Level 13.',         time: '3h ago',    read: false },
-  { id: 4, icon: Clock,       color: '#22c55e', title: 'Study session reminder',     body: 'Your scheduled Calculus session starts soon.', time: '4h ago',    read: true  },
-  { id: 5, icon: Star,        color: '#8b5cf6', title: 'Goal completed!',            body: 'You finished "30-min daily reading" goal.',   time: 'Yesterday', read: true  },
-  { id: 6, icon: AlertCircle, color: '#ef4444', title: 'Goal deadline approaching',  body: '"Finish Physics textbook" is due in 2 days.', time: 'Yesterday', read: true  },
-];
+// ─── Icon mapping from string to lucide component ─────────────────────────────
+const ICON_MAP = {
+  Award: Award,
+  Flame: Flame,
+  Zap: Zap,
+  Clock: Clock,
+  Star: Star,
+  AlertCircle: AlertCircle,
+  Bell: Bell,
+};
+
+// ─── Format relative time from database timestamp ─────────────────────────────
+function formatTimeAgo(timestamp) {
+  if (!timestamp) return 'just now';
+  const now = new Date();
+  const then = new Date(timestamp);
+  const diffMs = now - then;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return then.toLocaleDateString();
+}
+
+// ─── Transform backend notification to UI format ───────────────────────────────
+function transformNotification(notif) {
+  return {
+    id: notif._id,
+    icon: ICON_MAP[notif.icon] || Bell,
+    color: notif.color || '#6366f1',
+    title: notif.title,
+    body: notif.body,
+    time: formatTimeAgo(notif.createdAt),
+    read: notif.read,
+  };
+}
 
 // ─── Notification Panel ───────────────────────────────────────────────────────
-function NotifPanel({ notifs = [], setNotifs, colors, accent, onClose }) {
+function NotifPanel({ notifs = [], onMarkRead, onMarkAllRead, onDelete, onClearAll, colors, accent, onClose }) {
   const panelRef = useRef(null);
   const isMobile = useIsMobile(640);
-  
+
   const unread = Array.isArray(notifs) ? notifs.filter(n => !n.read).length : 0;
   const posStyle = isMobile
     ? { top: 64, left: 8, right: 8, width: 'auto', maxWidth: '100%' }
@@ -81,10 +116,10 @@ function NotifPanel({ notifs = [], setNotifs, colors, accent, onClose }) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [onClose]);
 
-  const markOne = (id) => setNotifs(p => p.map(n => n.id === id ? { ...n, read: true } : n));
-  const markAll = () => setNotifs(p => p.map(n => ({ ...n, read: true })));
-  const dismiss = (id) => setNotifs(p => p.filter(n => n.id !== id));
-  const clearAll = () => setNotifs([]);
+  const markOne = (id) => onMarkRead(id);
+  const markAll = () => onMarkAllRead();
+  const dismiss = (id) => onDelete(id);
+  const clearAll = () => onClearAll();
 
   return (
     <div
@@ -436,7 +471,8 @@ export function Layout() {
   const [mobileOpen,  setMobileOpen]  = useState(false);
   const [showNotifs,  setShowNotifs]  = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [notifs, setNotifs] = useState(SEED_NOTIFS);
+  const [notifs, setNotifs] = useState([]);
+  const [notifsLoading, setNotifsLoading] = useState(true);
 
   const location = useLocation();
   const { accent, colors, compactMode, animations, showXPBar, showStreak } = useAppearance();
@@ -444,6 +480,76 @@ export function Layout() {
   const lvl     = getLevelInfo(DEMO_XP);
   const sbWidth = collapsed ? 72 : 240;
   const dur     = animations ? '280ms' : '0ms';
+
+  // Fetch notifications on mount
+  useEffect(() => {
+    const fetchNotifs = async () => {
+      try {
+        setNotifsLoading(true);
+        const data = await notificationApi.fetchNotifications();
+        const transformed = (data.notifications || []).map(transformNotification);
+        setNotifs(transformed);
+      } catch (error) {
+        console.error('Failed to load notifications:', error);
+        setNotifs([]);
+      } finally {
+        setNotifsLoading(false);
+      }
+    };
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetchNotifs();
+    }
+  }, []);
+
+  // Refetch notifications (called after user actions)
+  const refetchNotifications = useCallback(async () => {
+    try {
+      const data = await notificationApi.fetchNotifications();
+      const transformed = (data.notifications || []).map(transformNotification);
+      setNotifs(transformed);
+    } catch (error) {
+      console.error('Failed to refetch notifications:', error);
+    }
+  }, []);
+
+  // Handlers for notification actions
+  const handleMarkAsRead = async (notifId) => {
+    try {
+      await notificationApi.markAsRead(notifId);
+      setNotifs(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationApi.markAllAsRead();
+      setNotifs(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+    }
+  };
+
+  const handleDeleteNotification = async (notifId) => {
+    try {
+      await notificationApi.deleteNotification(notifId);
+      setNotifs(prev => prev.filter(n => n.id !== notifId));
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+    }
+  };
+
+  const handleClearAllNotifications = async () => {
+    try {
+      await notificationApi.clearAllNotifications();
+      setNotifs([]);
+    } catch (error) {
+      console.error('Failed to clear notifications:', error);
+    }
+  };
 
   useEffect(() => {
     document.documentElement.style.setProperty('--notif-left',   `${sbWidth + 8}px`);
@@ -455,6 +561,13 @@ export function Layout() {
     setShowNotifs(false);
     setShowProfile(false);
   }, [location.pathname]);
+
+  // Refetch notifications when panel opens
+  useEffect(() => {
+    if (showNotifs) {
+      refetchNotifications();
+    }
+  }, [showNotifs, refetchNotifications]);
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? 'hidden' : '';
@@ -471,25 +584,28 @@ export function Layout() {
 
   return (
     <div className="sf-root flex h-screen overflow-hidden" style={{ background: colors.bg, fontFamily: "'Inter', sans-serif" }}>
-      
-      {  }
+
+      {/* Notification Panel */}
       {showNotifs && (
-        <NotifPanel 
-          notifs={notifs} 
-          setNotifs={setNotifs} 
-          colors={colors} 
-          accent={accent} 
-          onClose={() => setShowNotifs(false)} 
+        <NotifPanel
+          notifs={notifs}
+          onMarkRead={handleMarkAsRead}
+          onMarkAllRead={handleMarkAllAsRead}
+          onDelete={handleDeleteNotification}
+          onClearAll={handleClearAllNotifications}
+          colors={colors}
+          accent={accent}
+          onClose={() => setShowNotifs(false)}
         />
       )}
 
       {/* Profile Panel */}
       {showProfile && (
-        <ProfileDropdown 
-          colors={colors} 
-          accent={accent} 
-          lvl={lvl} 
-          onClose={() => setShowProfile(false)} 
+        <ProfileDropdown
+          colors={colors}
+          accent={accent}
+          lvl={lvl}
+          onClose={() => setShowProfile(false)}
         />
       )}
 
@@ -555,7 +671,9 @@ export function Layout() {
         </header>
 
         <main className="flex-1 overflow-y-auto" style={{ overflowX: 'hidden' }}>
-          <Outlet />
+          <NotificationRefreshContext.Provider value={{ refetch: refetchNotifications }}>
+            <Outlet />
+          </NotificationRefreshContext.Provider>
         </main>
       </div>
     </div>
