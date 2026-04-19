@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAppearance } from '../components/AppearanceProvider';
-import { Plus, Target, Trash2, CheckCircle2, TrendingUp, Calendar, Edit } from 'lucide-react';
+import { Plus, Target, Trash2, CheckCircle2, TrendingUp, Calendar, Edit, AlertCircle } from 'lucide-react';
 import { createNewGoal, fetchGoals, updateGoal, editFullGoal, deleteGoalAPI } from '../api/goalApi';
 
 const goalColors = ['#6366f1','#22c55e','#f97316','#8b5cf6','#06b6d4','#fbbf24','#ec4899'];
@@ -12,6 +12,7 @@ export function Goals() {
   const [filterPeriod, setFilter] = useState('all');
   const [customSubject, setCustomSubject] = useState('');
   const [editingId, setEditingId] = useState(null);
+  const [alertMsg, setAlertMsg] = useState(null); 
 
   const [newGoal, setNewGoal] = useState({
     title: '',
@@ -25,6 +26,14 @@ export function Goals() {
 
   const { colors, accent } = useAppearance();
   const inputStyle = { background: colors.card2, border: `1px solid ${colors.border}`, color: colors.text, colorScheme: colors.inputScheme };
+
+  // ALERTS HELPER FUNCTION
+  const displayAlert = (type, message) => {
+    setAlertMsg({ type, message });
+    setTimeout(() => {
+      setAlertMsg(null);
+    }, 3000);
+  };
 
   useEffect(() => {
     const getMyGoals = async () => {
@@ -56,6 +65,12 @@ export function Goals() {
   const submitHandler = async (e) => {
     if(e) e.preventDefault(); 
 
+    // Error handling kapag walang title or target
+    if (!newGoal.title || !newGoal.target) {
+       displayAlert('error', 'Please fill in the title and target amount!');
+       return;
+    }
+
     const finalSubject = newGoal.subject === 'Others' && customSubject.trim() !== '' 
       ? customSubject 
       : newGoal.subject;
@@ -64,11 +79,9 @@ export function Goals() {
     let adjustedCurrent = existingGoal ? existingGoal.current : 0;
     const newTarget = Number(newGoal.target);
 
-   
     if (adjustedCurrent > newTarget) {
       adjustedCurrent = newTarget; 
     }
-
 
     try {
       const goalData = {
@@ -76,7 +89,7 @@ export function Goals() {
         category: finalSubject,
         timeframe: newGoal.period,
         targetAmount: newTarget,
-        currentAmount: adjustedCurrent, 
+        currentAmount: adjustedCurrent,
         unit: newGoal.unit,
         deadline: newGoal.deadline,
         color: newGoal.color
@@ -84,7 +97,7 @@ export function Goals() {
 
       if (editingId) {
         const updatedGoal = await editFullGoal(editingId, goalData);
-        alert('Goal Updated Successfully! ');
+        displayAlert('success', 'Goal Updated Successfully!');
 
         setGoals(goals.map(g => g.id === editingId ? {
           ...g,
@@ -99,7 +112,7 @@ export function Goals() {
         } : g));
       } else {
         const savedGoal = await createNewGoal(goalData);
-        alert('Goal Created Successfully!');
+        displayAlert('success', 'Goal Created Successfully!');
 
         const newFormattedGoal = {
           id: savedGoal._id,
@@ -122,7 +135,7 @@ export function Goals() {
 
     } catch (error) {
       console.error(error);
-      alert('Error saving. Make sure your backend is running!');
+      displayAlert('error', 'Error saving. Make sure your backend is running!');
     }
   };
 
@@ -131,9 +144,10 @@ export function Goals() {
       try {
         await deleteGoalAPI(id);
         setGoals(goals.filter(g => g.id !== id));
+        displayAlert('success', 'Goal Deleted!');
       } catch (error) {
         console.error("Error deleting goal:", error);
-        alert("Cannot be deleted. Make sure backend is running.");
+        displayAlert('error', 'Hindi mabura sa database. Make sure backend is running.');
       }
     }
   };
@@ -143,13 +157,13 @@ export function Goals() {
     if (!goalToUpdate) return;
 
     const newAmount = Math.max(0, goalToUpdate.current + change);
-
     setGoals(goals.map(g => g.id === id ? { ...g, current: newAmount } : g));
 
     try {
       await updateGoal(id, newAmount);
     } catch (error) {
       console.error("Database progress not saved:", error);
+      displayAlert('error', 'Progress not saved in backend.');
     }
   };
 
@@ -187,6 +201,19 @@ export function Goals() {
           <span className="hidden sm:inline">New Goal</span>
         </button>
       </div>
+
+      {/* INLINE ALERT MESSAGE */}
+      {alertMsg && (
+        <div className="mb-5 p-4 rounded-xl flex items-center gap-3 transition-all animate-in fade-in slide-in-from-top-2"
+          style={{ 
+            background: alertMsg.type === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)', 
+            border: `1px solid ${alertMsg.type === 'error' ? 'rgba(239, 68, 68, 0.5)' : 'rgba(34, 197, 94, 0.5)'}`,
+            color: alertMsg.type === 'error' ? '#ef4444' : '#22c55e'
+          }}>
+          {alertMsg.type === 'error' ? <AlertCircle className="w-5 h-5 shrink-0" /> : <CheckCircle2 className="w-5 h-5 shrink-0" />}
+          <span className="text-sm" style={{ fontWeight: 600 }}>{alertMsg.message}</span>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
@@ -316,7 +343,6 @@ export function Goals() {
                     <div className="text-xs" style={{ color: goal.color, fontWeight: 600 }}>{pct}%</div>
                   </div>
                   
-                  {/* EDIT BUTTON */}
                   <button onClick={() => handleEditClick(goal)}
                     className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:text-blue-400 hover:bg-blue-400/10 transition-all"
                     style={{ color: colors.textMuted }}>
