@@ -4,7 +4,6 @@ import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 router.route('/').get(protect, getAnalyticsData);
-
 router.route('/save').post(protect, saveStudySession);
 
 export default router;
