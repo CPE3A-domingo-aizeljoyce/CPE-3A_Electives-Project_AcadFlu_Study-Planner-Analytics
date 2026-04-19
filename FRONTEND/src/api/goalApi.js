@@ -24,3 +24,12 @@ export const updateGoal = async (goalId, currentAmount) => {
   const response = await axios.put(`${API_URL}${goalId}`, { currentAmount }, getConfig());
   return response.data;
 };
+
+export const editFullGoal = async (goalId, goalData) => {
+  const response = await axios.put(`${API_URL}${goalId}`, goalData, getConfig());
+  return response.data;
+};
+export const deleteGoalAPI = async (goalId) => {
+  const response = await axios.delete(`${API_URL}${goalId}`, getConfig());
+  return response.data;
+};

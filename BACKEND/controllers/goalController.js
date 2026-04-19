@@ -143,6 +143,8 @@ export const updateGoalProgress = async (req, res) => {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
+    const updatedGoal = await Goal.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    
     const wasCompleted = goal.currentAmount >= goal.targetAmount;
     const oldProgress = Math.round((goal.currentAmount / goal.targetAmount) * 100);
 
@@ -151,7 +153,6 @@ export const updateGoalProgress = async (req, res) => {
 
     const isNowCompleted = goal.currentAmount >= goal.targetAmount;
 
-    const updatedGoal = await goal.save();
 
     // ─── Milestone Notifications ───────────────────────────────────────────
 
@@ -222,6 +223,24 @@ export const updateGoalProgress = async (req, res) => {
     }
 
     res.status(200).json(updatedGoal);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+export const deleteGoal = async (req, res) => {
+  try {
+    const goal = await Goal.findById(req.params.id);
+    
+    if (!goal) return res.status(404).json({ message: 'Goal not found' });
+
+    if (goal.user.toString() !== req.user.id) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+
+    await Goal.findByIdAndDelete(req.params.id);
+    
+    res.status(200).json({ id: req.params.id });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
