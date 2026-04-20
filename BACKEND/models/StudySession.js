@@ -1,4 +1,3 @@
-StudySession.js
 import mongoose from 'mongoose';
 
 const studySessionSchema = new mongoose.Schema({

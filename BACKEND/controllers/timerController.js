@@ -1,4 +1,3 @@
-timerController.js
 import StudySession from '../models/StudySession.js';
 import mongoose    from 'mongoose';
 import {

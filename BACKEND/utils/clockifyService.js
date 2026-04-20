@@ -1,4 +1,3 @@
-clockifyService.js
 const CLOCKIFY_API  = 'https://api.clockify.me/api/v1';
 const API_KEY       = process.env.CLOCKIFY_API_KEY;
 const WORKSPACE_ID  = process.env.CLOCKIFY_WORKSPACE_ID;
