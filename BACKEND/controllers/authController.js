@@ -2,6 +2,10 @@ import crypto from 'crypto';
 import dns    from 'dns';
 import { google }         from 'googleapis';
 import User               from '../models/User.js';
+import StudySession       from '../models/StudySession.js';
+import Task               from '../models/Task.js';
+import Goal               from '../models/goalModel.js';
+import Notification       from '../models/Notification.js';
 import { generateToken }  from '../utils/generateToken.js';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/sendEmail.js';
 
@@ -24,15 +28,14 @@ const GMAIL_DOMAINS = ['gmail.com', 'googlemail.com'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const safeUser = (user) => ({
-  id:               user._id,
-  name:             user.name,
-  email:            user.email,
-  avatar:           user.avatar,
-  isVerified:       user.isVerified,
-  hasGoogleCalendar: !!user.googleRefreshToken,   // ← ADDED
+  id:                user._id,
+  name:              user.name,
+  email:             user.email,
+  avatar:            user.avatar,
+  isVerified:        user.isVerified,
+  hasGoogleCalendar: !!user.googleRefreshToken,
 });
 
-// Builds a Google OAuth consent URL (used in emails and post-verify redirect)
 const buildGoogleAuthUrl = (hintEmail = '') => {
   const params = {
     access_type: 'offline',
@@ -78,9 +81,7 @@ export const register = async (req, res) => {
     if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password))
       return res.status(400).json({ message: 'Password must include uppercase, lowercase, and a number.' });
 
-    const googleAuthUrl = isGmailUser(email)
-      ? buildGoogleAuthUrl(email)
-      : null;
+    const googleAuthUrl = isGmailUser(email) ? buildGoogleAuthUrl(email) : null;
 
     const existing = await User.findOne({ email });
     if (existing) {
@@ -404,5 +405,29 @@ export const getMe = async (req, res) => {
   } catch (err) {
     console.error('GetMe error:', err);
     res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// ── DELETE /api/auth/delete-account ──────────────────────────────────────────
+export const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Cascade delete — tanggalin lahat ng data ng user
+    await Promise.all([
+      StudySession.deleteMany({ user: userId }),
+      Task        .deleteMany({ user: userId }),
+      Goal        .deleteMany({ user: userId }),
+      Notification.deleteMany({ user: userId }),
+    ]);
+
+    // Tanggalin ang user mismo
+    await User.findByIdAndDelete(userId);
+
+    res.status(200).json({ message: 'Account and all associated data have been deleted.' });
+
+  } catch (err) {
+    console.error('Delete account error:', err);
+    res.status(500).json({ message: 'Server error. Could not delete account.' });
   }
 };

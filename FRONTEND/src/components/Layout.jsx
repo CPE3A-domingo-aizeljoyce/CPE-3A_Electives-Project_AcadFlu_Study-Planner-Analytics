@@ -64,7 +64,23 @@ const ICON_MAP = {
   AlertCircle: AlertCircle,
   Bell: Bell,
 };
+const SETTINGS_KEY = 'sf_settings';
+const defaultProfile = { name: 'Moran', username: 'mrnski' };
 
+const loadSavedProfile = () => {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    const payload = raw ? JSON.parse(raw) : null;
+    return payload?.profile || defaultProfile;
+  } catch {
+    return defaultProfile;
+  }
+};
+
+const getProfileInitials = (name) => {
+  if (!name || !name.trim()) return '??';
+  return name.split(' ').filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase();
+};
 // ─── Format relative time from database timestamp ─────────────────────────────
 function formatTimeAgo(timestamp) {
   if (!timestamp) return 'just now';
@@ -97,7 +113,7 @@ function transformNotification(notif) {
 }
 
 // ─── Notification Panel ───────────────────────────────────────────────────────
-function NotifPanel({ notifs = [], onMarkRead, onMarkAllRead, onDelete, onClearAll, colors, accent, onClose }) {
+function NotifPanel({ animations, notifs = [], onMarkRead, onMarkAllRead, onDelete, onClearAll, colors, accent, onClose }) {
   const panelRef = useRef(null);
   const isMobile = useIsMobile(640);
 
@@ -124,7 +140,7 @@ function NotifPanel({ notifs = [], onMarkRead, onMarkAllRead, onDelete, onClearA
   return (
     <div
       ref={panelRef}
-      className="fixed z-[9999] rounded-2xl flex flex-col overflow-hidden shadow-2xl"
+      className={`fixed z-[9999] rounded-2xl flex flex-col overflow-hidden shadow-2xl ${animations ? 'animate-in fade-in slide-in-from-top-2' : ''}`}
       style={{ ...posStyle, maxHeight: 460, background: colors.card, border: `1px solid ${colors.border}` }}
     >
       <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${colors.border}` }}>
@@ -193,7 +209,7 @@ function NotifPanel({ notifs = [], onMarkRead, onMarkAllRead, onDelete, onClearA
 }
 
 // ─── Profile Dropdown ─────────────────────────────────────────────────────────
-function ProfileDropdown({ colors, accent, lvl, onClose }) {
+function ProfileDropdown({ colors, accent, lvl, profile, profileInitials, onClose }) {
   const navigate = useNavigate();
   const panelRef = useRef(null);
   const isMobile = useIsMobile(640);
@@ -227,10 +243,10 @@ function ProfileDropdown({ colors, accent, lvl, onClose }) {
         <div className="flex items-center gap-3 mb-3">
           <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-sm text-white flex-shrink-0"
             style={{ fontWeight: 800, background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, boxShadow: `0 0 16px rgba(${accent.rgb},.4)` }}>
-            AJ
+            {profileInitials}
           </div>
           <div className="min-w-0">
-            <p className="text-sm truncate" style={{ fontWeight: 700, color: colors.text }}>Moran</p>
+            <p className="text-sm truncate" style={{ fontWeight: 700, color: colors.text }}>{profile.name}</p>
             <p className="text-xs" style={{ color: accent.main, fontWeight: 500 }}>Pro Scholar</p>
           </div>
         </div>
@@ -275,7 +291,7 @@ function ProfileDropdown({ colors, accent, lvl, onClose }) {
 }
 
 // ─── Sidebar Content ──────────────────────────────────────────────────────────
-function SidebarContent({ notifs, collapsed, isMobile, colors, accent, lvl, showStreak, showXPBar, compactMode, animations, showNotifs, showProfile, setShowNotifs, setShowProfile, onClose }) {
+function SidebarContent({ notifs, collapsed, isMobile, colors, accent, lvl, showStreak, showXPBar, compactMode, animations, showNotifs, showProfile, setShowNotifs, setShowProfile, onClose, profile, profileInitials }) {
   const navPy = compactMode ? '0.4rem' : '0.6rem';
   const dur   = animations ? '280ms' : '0ms';
 
@@ -413,13 +429,13 @@ function SidebarContent({ notifs, collapsed, isMobile, colors, accent, lvl, show
               <div className="relative flex-shrink-0">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs text-white"
                   style={{ fontWeight: 700, background: `linear-gradient(135deg, ${accent.main}, ${accent.light})` }}>
-                  AJ
+                  {profileInitials}
                 </div>
                 <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
                   style={{ background: '#22c55e', border: `2px solid ${colors.sidebar}` }} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs truncate" style={{ fontWeight: 600, color: colors.text }}>Moran</p>
+                <p className="text-xs truncate" style={{ fontWeight: 600, color: colors.text }}>{profile.name}</p>
                 <p className="text-xs" style={{ color: accent.main, fontWeight: 500 }}>Pro Scholar</p>
               </div>
             </button>
@@ -454,7 +470,7 @@ function SidebarContent({ notifs, collapsed, isMobile, colors, accent, lvl, show
               onClick={() => { setShowProfile(v => !v); setShowNotifs(false); }}
               className="relative w-8 h-8 rounded-full flex items-center justify-center text-xs text-white transition-opacity"
               style={{ fontWeight: 700, background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, border: 'none', cursor: 'pointer' }}>
-              AJ
+              {profileInitials}
               <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
                 style={{ background: '#22c55e', border: `2px solid ${colors.sidebar}` }} />
             </button>
@@ -574,12 +590,38 @@ export function Layout() {
     return () => { document.body.style.overflow = ''; };
   }, [mobileOpen]);
 
+  const [profile, setProfile] = useState(() => loadSavedProfile());
+  const profileInitials = getProfileInitials(profile.name);
   const unread = Array.isArray(notifs) ? notifs.filter(n => !n.read).length : 0;
+
+  useEffect(() => {
+    const handleSettingsUpdated = (event) => {
+      const payload = event?.detail || null;
+      if (payload?.profile) {
+        setProfile(payload.profile);
+      } else {
+        setProfile(loadSavedProfile());
+      }
+    };
+
+    const handleStorageChange = (event) => {
+      if (event.key === SETTINGS_KEY) {
+        setProfile(loadSavedProfile());
+      }
+    };
+
+    window.addEventListener('studyTimerSettingsUpdated', handleSettingsUpdated);
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('studyTimerSettingsUpdated', handleSettingsUpdated);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   const sidebarProps = {
     colors, accent, lvl, showStreak, showXPBar, compactMode, animations,
     showNotifs, showProfile, setShowNotifs, setShowProfile,
-    notifs,
+    notifs, profile, profileInitials,
   };
 
   return (
@@ -596,15 +638,19 @@ export function Layout() {
           colors={colors}
           accent={accent}
           onClose={() => setShowNotifs(false)}
+          animations={animations}
         />
       )}
 
       {/* Profile Panel */}
       {showProfile && (
         <ProfileDropdown
+          animations={animations}
           colors={colors}
           accent={accent}
           lvl={lvl}
+          profile={profile}
+          profileInitials={profileInitials}
           onClose={() => setShowProfile(false)}
         />
       )}
@@ -664,13 +710,13 @@ export function Layout() {
             onClick={() => { setShowProfile(v => !v); setShowNotifs(false); }}
             className="relative w-8 h-8 rounded-full flex items-center justify-center text-xs text-white flex-shrink-0"
             style={{ fontWeight: 700, background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, border: 'none', cursor: 'pointer' }}>
-            AJ
+            {profileInitials}
             <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
               style={{ background: '#22c55e', border: `2px solid ${colors.sidebar}` }} />
           </button>
         </header>
 
-        <main className="flex-1 overflow-y-auto" style={{ overflowX: 'hidden' }}>
+        <main key={location.pathname} className={`flex-1 overflow-y-auto ${animations ? 'animate-in fade-in slide-in-from-top-2' : ''}`} style={{ overflowX: 'hidden' }}>
           <NotificationRefreshContext.Provider value={{ refetch: refetchNotifications }}>
             <Outlet />
           </NotificationRefreshContext.Provider>

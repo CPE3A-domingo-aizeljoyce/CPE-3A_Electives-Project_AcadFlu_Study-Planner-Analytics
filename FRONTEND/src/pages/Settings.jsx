@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { useAppearance, ACCENT_PALETTE } from '../components/AppearanceProvider';
 import { User, Bell, Clock, Palette, Shield, ChevronRight, Check, Sun, Moon } from 'lucide-react';
 
@@ -34,9 +35,24 @@ function Toggle({ value, onChange, accentRgb, colors }) {
   return (
     <button onClick={() => onChange(!value)} role="switch" aria-checked={value}
       className="flex-shrink-0 rounded-full relative"
-      style={{ width: 40, height: 22, background: value ? `rgb(${accentRgb})` : colors.border, boxShadow: value ? `0 0 10px rgba(${accentRgb},0.4)` : 'none', transition: 'background 200ms', border: 'none', cursor: 'pointer' }}>
+      style={{
+        width: 42,
+        height: 24,
+        background: value ? `linear-gradient(135deg, rgba(${accentRgb},1), rgba(${accentRgb},0.88))` : colors.border,
+        boxShadow: value ? `0 12px 24px rgba(${accentRgb},0.18)` : 'inset 0 0 0 1px rgba(255,255,255,0.08)',
+        transition: 'background 260ms cubic-bezier(0.22,1,0.36,1), box-shadow 260ms cubic-bezier(0.22,1,0.36,1)',
+        border: 'none',
+        cursor: 'pointer',
+      }}>
       <div className="absolute top-0.5 rounded-full bg-white"
-        style={{ width: 18, height: 18, left: 2, transform: value ? 'translateX(18px)' : 'translateX(0)', transition: 'transform 200ms cubic-bezier(0.4,0,0.2,1)' }} />
+        style={{
+          width: 19,
+          height: 19,
+          left: 2,
+          transform: value ? 'translateX(18px)' : 'translateX(0)',
+          transition: 'transform 260ms cubic-bezier(0.22,1,0.36,1)',
+          boxShadow: '0 12px 24px rgba(15,23,42,0.12)',
+        }} />
     </button>
   );
 }
@@ -48,6 +64,11 @@ function loadSavedSettings() {
   } catch {
     return null;
   }
+}
+
+function saveSettingsLocally(payload) {
+  localStorage.setItem(LS_SETTINGS_KEY, JSON.stringify(payload));
+  window.dispatchEvent(new CustomEvent('studyTimerSettingsUpdated', { detail: payload }));
 }
 
 // ----------------------------------------------------------------------
@@ -72,22 +93,51 @@ export function Settings() {
     setTheme, setAccent, setCompact, setAnimations, setShowXPBar, setShowStreak,
   } = useAppearance();
 
-  const [savedSettings] = useState(() => loadSavedSettings() ?? {
-    profile: defaultProfile,
-    notifs: defaultNotifs,
-    timer: defaultTimer,
-  });
-
-  const [profile, setProfile] = useState(savedSettings.profile);
-  const [notifs, setNotifs] = useState(savedSettings.notifs);
-  const [timer, setTimer] = useState(savedSettings.timer);
+  const [savedSettings, setSavedSettings] = useState(null);  // Track loaded settings
+  const [profile, setProfile] = useState(defaultProfile);
+  const [notifs, setNotifs] = useState(defaultNotifs);
+  const [timer, setTimer] = useState(defaultTimer);
   const [saved, setSaved] = useState(false);
-  const handleSave = () => {
+
+  // Fetch settings from backend on component mount
+  useEffect(() => {
+    const local = loadSavedSettings();
+    if (local) {
+      setSavedSettings(local);
+      setProfile(local.profile || defaultProfile);
+      setNotifs(local.notifs || defaultNotifs);
+      setTimer(local.timer || defaultTimer);
+      // Don't fetch from backend if local exists to prevent automatic changes
+    } else {
+      axios.get('/api/settings')  // Adjust URL if needed (e.g., full base URL)
+        .then(res => {
+          const data = res.data;
+          const payload = {
+            profile: data.profile || defaultProfile,
+            notifs: data.notifs || defaultNotifs,
+            timer: data.timer || defaultTimer,
+          };
+          setSavedSettings(payload);
+          setProfile(payload.profile);
+          setNotifs(payload.notifs);
+          setTimer(payload.timer);
+          saveSettingsLocally(payload);
+        })
+        .catch(err => {
+          console.error('Failed to load settings:', err);
+          setSavedSettings({ profile: defaultProfile, notifs: defaultNotifs, timer: defaultTimer });
+        });
+    }
+  }, []);
+
+  const handleSave = async () => {
     const payload = { profile, notifs, timer };
+    saveSettingsLocally(payload);
     try {
-      localStorage.setItem(LS_SETTINGS_KEY, JSON.stringify(payload));
-    } catch {
-      // ignore storage failures
+      await axios.put('/api/settings', payload);
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      // Still save locally so timer updates immediately and user changes are not lost.
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -398,7 +448,8 @@ export function Settings() {
 
         {/* Content panel */}
         <div className="lg:col-span-3">
-          <div className="p-6 rounded-2xl mb-4" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+          <div key={activeSection} className="p-6 rounded-2xl mb-4 animate-in fade-in slide-in-from-top-2"
+            style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
             <h2 className="text-base mb-5" style={{ fontWeight: 600, color: colors.text }}>
               {sections.find(s => s.id === activeSection)?.label}
             </h2>
