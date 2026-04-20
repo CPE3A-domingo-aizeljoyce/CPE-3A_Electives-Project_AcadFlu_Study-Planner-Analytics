@@ -3,7 +3,6 @@ import Achievement  from '../models/Achievement.js';
 import StudySession from '../models/StudySession.js';
 import Task         from '../models/Task.js';
 import Goal         from '../models/goalModel.js';
-import Notification from '../models/Notification.js';
 import Note         from '../models/Note.js'; // safe: may be undefined if file is empty
 
 // ─── Achievement Definitions ──────────────────────────────────────────────────
@@ -160,17 +159,6 @@ export const checkAndAwardAchievements = async (userId) => {
       { ordered: false }
     );
 
-    // Fire in-app notifications
-    await Notification.insertMany(
-      newlyUnlocked.map(def => ({
-        user:    userId,
-        type:    'achievement',
-        title:   `Achievement Unlocked: ${def.name}`,
-        message: `${def.description} · +${def.xp} XP`,
-        read:    false,
-      })),
-      { ordered: false }
-    );
 
     return newlyUnlocked;
   } catch (err) {

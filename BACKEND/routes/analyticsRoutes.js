@@ -1,10 +1,10 @@
-// TIMER ROUTES
-// Handles study sessions and timer tracking
-//
-// Connected frontend:
-// - Timer.jsx
-//
-// Uses:
-// - Controller: timerController.js
-// - Model: StudySession.js
-// - Middleware: authMiddleware.js
+import express from 'express';
+import { getAnalyticsData, saveStudySession } from '../controllers/analyticsController.js';
+import { protect } from '../middleware/authMiddleware.js';
+
+const router = express.Router();
+
+router.route('/').get(protect, getAnalyticsData);
+router.route('/save').post(protect, saveStudySession);
+
+export default router;

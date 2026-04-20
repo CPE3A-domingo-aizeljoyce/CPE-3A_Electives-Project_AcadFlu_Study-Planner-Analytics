@@ -8,7 +8,7 @@ import { AuthCallback }  from './pages/AuthCallback';
 import { ResetPassword } from './pages/ResetPassword';   // ← ADDED
 import { Dashboard }     from './pages/Dashboard';
 import { Tasks }         from './pages/Tasks';
-import { StudyTimer }    from './pages/Timer';
+import { StudyTimer }         from './pages/Timer';
 import { Analytics }     from './pages/Analytics';
 import { Goals }         from './pages/Goals';
 import { Notes }         from './pages/Notes';
