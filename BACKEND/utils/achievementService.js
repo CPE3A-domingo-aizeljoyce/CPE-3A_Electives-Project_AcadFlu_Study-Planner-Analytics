@@ -1,6 +1,6 @@
 import mongoose    from 'mongoose';
 import Achievement  from '../models/Achievement.js';
-import StudySession from '../models/StudySession.js';
+import StudySession from '../models/studySessionModel.js';
 import Task         from '../models/Task.js';
 import Goal         from '../models/goalModel.js';
 import Note         from '../models/Note.js'; // safe: may be undefined if file is empty

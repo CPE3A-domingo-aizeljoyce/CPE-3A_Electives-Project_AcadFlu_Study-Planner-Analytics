@@ -1,4 +1,4 @@
-import StudySession from '../models/StudySession.js';
+import StudySession from '../models/studySessionModel.js';
 import mongoose    from 'mongoose';
 import {
   startTimeEntry,

@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import dns    from 'dns';
 import { google }         from 'googleapis';
 import User               from '../models/User.js';
-import StudySession       from '../models/StudySession.js';
+import StudySession from '../models/studySessionModel.js';
 import Task               from '../models/Task.js';
 import Goal               from '../models/goalModel.js';
 import { generateToken }  from '../utils/generateToken.js';
