@@ -207,61 +207,7 @@ export const getTask = async (req, res) => {
   }
 };
 
-// UPDATE TASK
-export const updateTask = async (req, res) => {
-  try {
-    let task = await Task.findById(req.params.id);
 
-    if (!task) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
-    if (task.user.toString() !== req.user.id) {
-      return res.status(401).json({ message: 'Not authorized to update this task' });
-    }
-
-    const { title, subject, date, startTime, endTime, priority, status, done, description } = req.body;
-
-    // ── Track whether task was already done BEFORE this update ───────────────
-    const wasDoneBefore = task.done;
-
-    if (title       !== undefined) task.title       = title;
-    if (subject     !== undefined) task.subject     = subject;
-    if (date        !== undefined) task.date        = new Date(date);
-    if (startTime   !== undefined) task.startTime   = startTime;
-    if (endTime     !== undefined) task.endTime     = endTime;
-    if (priority    !== undefined) task.priority    = priority;
-    if (status !== undefined) {
-      task.status = status;
-      task.done   = status === 'done';
-    }
-    if (done !== undefined) {
-      task.done   = done;
-      task.status = done ? 'done' : (task.status === 'done' ? 'todo' : task.status);
-    }
-    if (description !== undefined) task.description = description;
-
-    task = await task.save();
-
-    if (task.googleEventId && req.user.googleRefreshToken) {
-      try {
-        await syncTaskToCalendarInternal(req.user.id, task);
-      } catch (calendarError) {
-        console.warn('Failed to sync task to calendar:', calendarError.message);
-      }
-    }
-
-    // ── Achievement hook: fire only when task JUST became done ───────────────
-    if (!wasDoneBefore && task.done) {
-      checkAndAwardAchievements(req.user.id)
-        .catch(err => console.error('[Achievements] updateTask hook error:', err.message));
-    }
-
-    res.status(200).json(task);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-};
 
 // DELETE TASK
 export const deleteTask = async (req, res) => {
@@ -329,64 +275,23 @@ export const toggleTask = async (req, res) => {
   }
 };
 
-// UPDATE TASK STATUS
+// @desc    Update task status
+// @route   PUT /api/tasks/:id/status
+// @access  Private
 export const updateTaskStatus = async (req, res) => {
   try {
+    const { id } = req.params;
     const { status } = req.body;
 
-    if (!['todo', 'in-progress', 'done'].includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
-    }
-
-    let task = await Task.findById(req.params.id);
+   const task = await Task.findByIdAndUpdate(id, { status }, { new: true });
 
     if (!task) {
       return res.status(404).json({ message: 'Task not found' });
     }
 
-    if (task.user.toString() !== req.user.id) {
-      return res.status(401).json({ message: 'Not authorized to update this task' });
-    }
-
-    // ── Track whether task was already done BEFORE this update ───────────────
-    const wasDoneBefore = task.done;
-
-    task.status = status;
-    task.done   = status === 'done';
-
-    task = await task.save();
-
-    if (task.googleEventId && req.user.googleRefreshToken) {
-      try {
-        await markTaskDoneInCalendarInternal(req.user.id, task.googleEventId, task.done);
-      } catch (calendarError) {
-        console.warn('Failed to update task in calendar:', calendarError.message);
-      }
-    }
-
-    // ── AUTO-PROGRESS: Update goal progress when task status changes ─────────
-    if (task.goal) {
-      try {
-        const allGoalTasks = await Task.find({ goal: task.goal });
-        const totalTasks = allGoalTasks.length;
-        const completedTasks = allGoalTasks.filter(t => t.status === 'done').length;
-        const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-        await Goal.findByIdAndUpdate(task.goal, { progress: progressPercentage });
-      } catch (goalError) {
-        console.warn('Failed to update goal progress:', goalError.message);
-      }
-    }
-
-    // ── Achievement hook: fire only when task JUST became done ───────────────
-    if (!wasDoneBefore && status === 'done') {
-      checkAndAwardAchievements(req.user.id)
-        .catch(err => console.error('[Achievements] updateTaskStatus hook error:', err.message));
-    }
-
     res.status(200).json(task);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ message: "Failed to update task status" });
   }
 };
 
@@ -498,5 +403,24 @@ export const getCalendarStats = async (req, res) => {
     res.status(200).json(stats);
   } catch (error) {
     res.status(400).json({ message: error.message });
+  }
+};
+
+// @desc    Update task details (Edit)
+// @route   PUT /api/tasks/:id
+// @access  Private
+export const updateTask = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const updatedTask = await Task.findByIdAndUpdate(id, req.body, { new: true });
+
+    if (!updatedTask) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    res.status(200).json(updatedTask);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update task details" });
   }
 };

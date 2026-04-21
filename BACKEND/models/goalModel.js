@@ -1,44 +1,28 @@
 import mongoose from 'mongoose';
 
-const goalSchema = new mongoose.Schema({
+const goalSchema = mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
-    ref: 'User' 
+    ref: 'User'
   },
   title: {
     type: String,
-    required: true
+    required: [true, 'Please add a goal title']
   },
-  category: {
-    type: String, 
-    required: true
-  },
-  timeframe: {
-    type: String, 
-    required: true
-  },
-  targetAmount: {
-    type: Number, 
-    required: true
-  },
-  currentAmount: {
-    type: Number,
-    default: 0 
-  },
-  unit: {
-    type: String, 
-    required: true
-  },
-  deadline: {
-    type: Date,
-    required: true
+  subject: {
+    type: String,
+    default: 'General'
   },
   color: {
-    type: String
+    type: String,
+    default: '#6366f1'
+  },
+  status: {
+    type: String,
+    enum: ['active', 'completed'],
+    default: 'active'
   }
-}, {
-  timestamps: true 
-});
+}, { timestamps: true });
 
 export default mongoose.model('Goal', goalSchema);
