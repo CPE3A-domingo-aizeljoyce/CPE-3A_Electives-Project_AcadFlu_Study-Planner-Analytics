@@ -2,9 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import {
   LayoutDashboard, ListTodo, Timer, BarChart2, Target, BookOpen, Trophy,
-  Flame, Zap, Clock, Star, AlertCircle, Award,
-  Bell, X, Brain, Settings, ChevronLeft, ChevronRight,
-  Check, CheckCheck, User, LogOut, Palette, Menu,
+  Flame, Zap, X, Brain, Settings, ChevronLeft, ChevronRight,
+  User, LogOut, Palette, Menu,
 } from 'lucide-react';
 import { useAppearance } from './AppearanceProvider';
 import { logoutUser } from '../api/authApi';
@@ -52,113 +51,26 @@ const NAV_ITEMS = [
   { to: '/app/achievements', icon: Trophy,          label: 'Achievements'           },
 ];
 
-const SEED_NOTIFS = [
-  { id: 1, icon: Award,       color: '#fbbf24', title: 'Badge Unlocked!',           body: 'You earned the "Week Warrior" badge.',        time: '2m ago',    read: false },
-  { id: 2, icon: Flame,       color: '#f97316', title: 'Streak at risk!',            body: 'Study today to keep your 12-day streak.',     time: '1h ago',    read: false },
-  { id: 3, icon: Zap,         color: '#6366f1', title: 'Level up incoming!',         body: 'Only 160 XP left to reach Level 13.',         time: '3h ago',    read: false },
-  { id: 4, icon: Clock,       color: '#22c55e', title: 'Study session reminder',     body: 'Your scheduled Calculus session starts soon.', time: '4h ago',    read: true  },
-  { id: 5, icon: Star,        color: '#8b5cf6', title: 'Goal completed!',            body: 'You finished "30-min daily reading" goal.',   time: 'Yesterday', read: true  },
-  { id: 6, icon: AlertCircle, color: '#ef4444', title: 'Goal deadline approaching',  body: '"Finish Physics textbook" is due in 2 days.', time: 'Yesterday', read: true  },
-];
+const SETTINGS_KEY = 'sf_settings';
+const defaultProfile = { name: 'Moran', username: 'mrnski' };
 
-// ─── Notification Panel ───────────────────────────────────────────────────────
-function NotifPanel({ notifs = [], setNotifs, colors, accent, onClose }) {
-  const panelRef = useRef(null);
-  const isMobile = useIsMobile(640);
-  
-  const unread = Array.isArray(notifs) ? notifs.filter(n => !n.read).length : 0;
-  const posStyle = isMobile
-    ? { top: 64, left: 8, right: 8, width: 'auto', maxWidth: '100%' }
-    : { bottom: 80, left: 'var(--notif-left, 16px)', width: 320, maxWidth: 'calc(100vw - var(--notif-left, 16px) - 16px)' };
+const loadSavedProfile = () => {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    const payload = raw ? JSON.parse(raw) : null;
+    return payload?.profile || defaultProfile;
+  } catch {
+    return defaultProfile;
+  }
+};
 
-  useEffect(() => {
-    function handleClick(e) {
-      if (panelRef.current?.contains(e.target)) return;
-      if (e.target.closest('[data-notif-trigger]')) return;
-      onClose();
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [onClose]);
-
-  const markOne = (id) => setNotifs(p => p.map(n => n.id === id ? { ...n, read: true } : n));
-  const markAll = () => setNotifs(p => p.map(n => ({ ...n, read: true })));
-  const dismiss = (id) => setNotifs(p => p.filter(n => n.id !== id));
-  const clearAll = () => setNotifs([]);
-
-  return (
-    <div
-      ref={panelRef}
-      className="fixed z-[9999] rounded-2xl flex flex-col overflow-hidden shadow-2xl"
-      style={{ ...posStyle, maxHeight: 460, background: colors.card, border: `1px solid ${colors.border}` }}
-    >
-      <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${colors.border}` }}>
-        <div className="flex items-center gap-2">
-          <Bell className="w-4 h-4" style={{ color: accent.main }} />
-          <span className="text-sm" style={{ fontWeight: 700, color: colors.text }}>Notifications</span>
-          {unread > 0 && (
-            <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ background: accent.main, fontWeight: 700 }}>{unread}</span>
-          )}
-        </div>
-        <div className="flex gap-1">
-          {unread > 0 && (
-            <button onClick={markAll} className="p-1.5 rounded-lg transition-colors" style={{ color: accent.main, background: `rgba(${accent.rgb},.1)` }}>
-              <CheckCheck className="w-3.5 h-3.5" />
-            </button>
-          )}
-          <button onClick={onClose} className="p-1.5 rounded-lg" style={{ color: colors.textMuted }}>
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-1.5">
-        {notifs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <div className="w-11 h-11 rounded-2xl flex items-center justify-center mb-3" style={{ background: `rgba(${accent.rgb},.1)` }}>
-              <Bell className="w-5 h-5 opacity-40" style={{ color: accent.main }} />
-            </div>
-            <p className="text-sm" style={{ fontWeight: 600, color: colors.textSub }}>All caught up!</p>
-            <p className="text-xs mt-1" style={{ color: colors.textMuted }}>No new notifications</p>
-          </div>
-        ) : notifs.map(n => {
-          const Icon = n.icon;
-          return (
-            <div key={n.id}
-              className="flex items-start gap-2.5 p-2.5 rounded-xl mb-1 cursor-pointer transition-colors group"
-              style={{ background: n.read ? 'transparent' : `rgba(${accent.rgb},.06)` }}
-              onClick={() => markOne(n.id)}
-            >
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${n.color}20` }}>
-                <Icon className="w-4 h-4" style={{ color: n.color }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs mb-0.5" style={{ fontWeight: 600, color: colors.text }}>{n.title}</p>
-                <p className="text-xs leading-relaxed" style={{ color: colors.textMuted }}>{n.body}</p>
-                <p className="text-xs mt-1" style={{ color: n.read ? colors.textMuted : accent.main, fontWeight: n.read ? 400 : 500 }}>{n.time}</p>
-              </div>
-              <button onClick={e => { e.stopPropagation(); dismiss(n.id); }}
-                className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-md flex items-center justify-center transition-all flex-shrink-0"
-                style={{ background: 'rgba(248,113,113,.15)', color: '#f87171' }}>
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-      {notifs.length > 0 && (
-        <div className="flex items-center justify-between px-4 py-2.5 flex-shrink-0" style={{ borderTop: `1px solid ${colors.border}` }}>
-          <button onClick={clearAll} className="text-xs" style={{ color: '#f87171', background: 'none', border: 'none', cursor: 'pointer' }}>Clear all</button>
-          <span className="text-xs" style={{ color: colors.textMuted }}>{unread > 0 ? `${unread} unread` : 'All read'}</span>
-        </div>
-      )}
-    </div>
-  );
-}
+const getProfileInitials = (name) => {
+  if (!name || !name.trim()) return '??';
+  return name.split(' ').filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase();
+};
 
 // ─── Profile Dropdown ─────────────────────────────────────────────────────────
-function ProfileDropdown({ colors, accent, lvl, onClose }) {
+function ProfileDropdown({ colors, accent, lvl, profile, profileInitials, onClose }) {
   const navigate = useNavigate();
   const panelRef = useRef(null);
   const isMobile = useIsMobile(640);
@@ -192,10 +104,10 @@ function ProfileDropdown({ colors, accent, lvl, onClose }) {
         <div className="flex items-center gap-3 mb-3">
           <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-sm text-white flex-shrink-0"
             style={{ fontWeight: 800, background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, boxShadow: `0 0 16px rgba(${accent.rgb},.4)` }}>
-            AJ
+            {profileInitials}
           </div>
           <div className="min-w-0">
-            <p className="text-sm truncate" style={{ fontWeight: 700, color: colors.text }}>Moran</p>
+            <p className="text-sm truncate" style={{ fontWeight: 700, color: colors.text }}>{profile.name}</p>
             <p className="text-xs" style={{ color: accent.main, fontWeight: 500 }}>Pro Scholar</p>
           </div>
         </div>
@@ -240,15 +152,13 @@ function ProfileDropdown({ colors, accent, lvl, onClose }) {
 }
 
 // ─── Sidebar Content ──────────────────────────────────────────────────────────
-function SidebarContent({ notifs, collapsed, isMobile, colors, accent, lvl, showStreak, showXPBar, compactMode, animations, showNotifs, showProfile, setShowNotifs, setShowProfile, onClose }) {
+function SidebarContent({ collapsed, isMobile, colors, accent, lvl, showStreak, showXPBar, compactMode, animations, showProfile, setShowProfile, onClose, profile, profileInitials }) {
   const navPy = compactMode ? '0.4rem' : '0.6rem';
   const dur   = animations ? '280ms' : '0ms';
 
   const navActiveText   = colors.navActiveText === 'accent' ? accent.main : (colors.navActiveText || '#ffffff');
   const navActiveBg     = `linear-gradient(135deg, rgba(${accent.rgb},0.22), rgba(${accent.rgb},0.10))`;
   const navActiveShadow = `0 0 0 1px rgba(${accent.rgb},0.3), inset 0 1px 0 rgba(255,255,255,0.05)`;
-
-  const unread = Array.isArray(notifs) ? notifs.filter(n => !n.read).length : 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -341,7 +251,7 @@ function SidebarContent({ notifs, collapsed, isMobile, colors, accent, lvl, show
         </div>
       )}
 
-      {/* Bottom: Settings + Profile + Bell */}
+      {/* Bottom: Settings + Profile */}
       <div className="flex-shrink-0" style={{ padding: '0 12px 12px', borderTop: `1px solid ${colors.border}` }}>
         <NavLink to="/app/settings"
           title={collapsed && !isMobile ? 'Settings' : undefined}
@@ -366,11 +276,11 @@ function SidebarContent({ notifs, collapsed, isMobile, colors, accent, lvl, show
 
         {/* Profile row */}
         {(!collapsed || isMobile) ? (
-          <div className="flex items-center gap-1.5 mt-1">
+          <div className="mt-1">
             <button
               data-profile-trigger
-              onClick={() => { setShowProfile(v => !v); setShowNotifs(false); }}
-              className="flex-1 min-w-0 flex items-center gap-2.5 rounded-xl transition-colors text-left"
+              onClick={() => setShowProfile(v => !v)}
+              className="w-full flex items-center gap-2.5 rounded-xl transition-colors text-left"
               style={{ padding: `${navPy} 12px`, border: 'none', cursor: 'pointer', background: showProfile ? `rgba(${accent.rgb},.08)` : 'transparent' }}
               onMouseEnter={e => e.currentTarget.style.background = `rgba(${accent.rgb},.08)`}
               onMouseLeave={e => { if (!showProfile) e.currentTarget.style.background = 'transparent'; }}
@@ -378,48 +288,25 @@ function SidebarContent({ notifs, collapsed, isMobile, colors, accent, lvl, show
               <div className="relative flex-shrink-0">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs text-white"
                   style={{ fontWeight: 700, background: `linear-gradient(135deg, ${accent.main}, ${accent.light})` }}>
-                  AJ
+                  {profileInitials}
                 </div>
                 <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
                   style={{ background: '#22c55e', border: `2px solid ${colors.sidebar}` }} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs truncate" style={{ fontWeight: 600, color: colors.text }}>Moran</p>
+                <p className="text-xs truncate" style={{ fontWeight: 600, color: colors.text }}>{profile.name}</p>
                 <p className="text-xs" style={{ color: accent.main, fontWeight: 500 }}>Pro Scholar</p>
               </div>
-            </button>
-
-            <button
-              data-notif-trigger
-              onClick={() => { setShowNotifs(v => !v); setShowProfile(false); }}
-              className="relative w-9 h-9 flex-shrink-0 rounded-xl flex items-center justify-center transition-colors"
-              style={{
-                border: showNotifs ? `1px solid rgba(${accent.rgb},.35)` : '1px solid transparent',
-                background: showNotifs ? `rgba(${accent.rgb},.12)` : 'transparent',
-                color: showNotifs ? accent.main : colors.textMuted,
-                cursor: 'pointer',
-              }}
-              onMouseEnter={e => { if (!showNotifs) e.currentTarget.style.background = `rgba(${accent.rgb},.08)`; }}
-              onMouseLeave={e => { if (!showNotifs) e.currentTarget.style.background = 'transparent'; }}
-              title="Notifications"
-            >
-              <Bell className="w-4 h-4" />
-              {unread > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white flex items-center justify-center"
-                  style={{ background: '#ef4444', fontSize: 9, fontWeight: 700, border: `2px solid ${colors.sidebar}` }}>
-                  {unread > 9 ? '9+' : unread}
-                </span>
-              )}
             </button>
           </div>
         ) : (
           <div className="flex justify-center mt-2">
             <button
               data-profile-trigger
-              onClick={() => { setShowProfile(v => !v); setShowNotifs(false); }}
+              onClick={() => setShowProfile(v => !v)}
               className="relative w-8 h-8 rounded-full flex items-center justify-center text-xs text-white transition-opacity"
               style={{ fontWeight: 700, background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, border: 'none', cursor: 'pointer' }}>
-              AJ
+              {profileInitials}
               <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
                 style={{ background: '#22c55e', border: `2px solid ${colors.sidebar}` }} />
             </button>
@@ -434,9 +321,7 @@ function SidebarContent({ notifs, collapsed, isMobile, colors, accent, lvl, show
 export function Layout() {
   const [collapsed,   setCollapsed]   = useState(false);
   const [mobileOpen,  setMobileOpen]  = useState(false);
-  const [showNotifs,  setShowNotifs]  = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [notifs, setNotifs] = useState(SEED_NOTIFS);
 
   const location = useLocation();
   const { accent, colors, compactMode, animations, showXPBar, showStreak } = useAppearance();
@@ -446,13 +331,11 @@ export function Layout() {
   const dur     = animations ? '280ms' : '0ms';
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--notif-left',   `${sbWidth + 8}px`);
     document.documentElement.style.setProperty('--profile-left', `${sbWidth + 8}px`);
   }, [sbWidth]);
 
   useEffect(() => {
     setMobileOpen(false);
-    setShowNotifs(false);
     setShowProfile(false);
   }, [location.pathname]);
 
@@ -461,35 +344,52 @@ export function Layout() {
     return () => { document.body.style.overflow = ''; };
   }, [mobileOpen]);
 
-  const unread = Array.isArray(notifs) ? notifs.filter(n => !n.read).length : 0;
+  const [profile, setProfile] = useState(() => loadSavedProfile());
+  const profileInitials = getProfileInitials(profile.name);
+
+  useEffect(() => {
+    const handleSettingsUpdated = (event) => {
+      const payload = event?.detail || null;
+      if (payload?.profile) {
+        setProfile(payload.profile);
+      } else {
+        setProfile(loadSavedProfile());
+      }
+    };
+
+    const handleStorageChange = (event) => {
+      if (event.key === SETTINGS_KEY) {
+        setProfile(loadSavedProfile());
+      }
+    };
+
+    window.addEventListener('studyTimerSettingsUpdated', handleSettingsUpdated);
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('studyTimerSettingsUpdated', handleSettingsUpdated);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   const sidebarProps = {
     colors, accent, lvl, showStreak, showXPBar, compactMode, animations,
-    showNotifs, showProfile, setShowNotifs, setShowProfile,
-    notifs,
+    showProfile, setShowProfile,
+    profile, profileInitials,
   };
 
   return (
     <div className="sf-root flex h-screen overflow-hidden" style={{ background: colors.bg, fontFamily: "'Inter', sans-serif" }}>
-      
-      {  }
-      {showNotifs && (
-        <NotifPanel 
-          notifs={notifs} 
-          setNotifs={setNotifs} 
-          colors={colors} 
-          accent={accent} 
-          onClose={() => setShowNotifs(false)} 
-        />
-      )}
 
       {/* Profile Panel */}
       {showProfile && (
-        <ProfileDropdown 
-          colors={colors} 
-          accent={accent} 
-          lvl={lvl} 
-          onClose={() => setShowProfile(false)} 
+        <ProfileDropdown
+          animations={animations}
+          colors={colors}
+          accent={accent}
+          lvl={lvl}
+          profile={profile}
+          profileInitials={profileInitials}
+          onClose={() => setShowProfile(false)}
         />
       )}
 
@@ -532,29 +432,18 @@ export function Layout() {
             </div>
             <span className="text-sm" style={{ fontWeight: 700, color: colors.text }}>StudyFlow</span>
           </div>
-          <button data-notif-trigger onClick={() => setShowNotifs(v => !v)}
-            className="relative w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: colors.card, color: colors.textSub, border: 'none', cursor: 'pointer' }}>
-            <Bell className="w-4 h-4" />
-            {unread > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white"
-                style={{ background: '#ef4444', fontSize: 9, fontWeight: 700 }}>
-                {unread}
-              </span>
-            )}
-          </button>
           <button
             data-profile-trigger
-            onClick={() => { setShowProfile(v => !v); setShowNotifs(false); }}
+            onClick={() => setShowProfile(v => !v)}
             className="relative w-8 h-8 rounded-full flex items-center justify-center text-xs text-white flex-shrink-0"
             style={{ fontWeight: 700, background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, border: 'none', cursor: 'pointer' }}>
-            AJ
+            {profileInitials}
             <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
               style={{ background: '#22c55e', border: `2px solid ${colors.sidebar}` }} />
           </button>
         </header>
 
-        <main className="flex-1 overflow-y-auto" style={{ overflowX: 'hidden' }}>
+        <main key={location.pathname} className={`flex-1 overflow-y-auto ${animations ? 'animate-in fade-in slide-in-from-top-2' : ''}`} style={{ overflowX: 'hidden' }}>
           <Outlet />
         </main>
       </div>

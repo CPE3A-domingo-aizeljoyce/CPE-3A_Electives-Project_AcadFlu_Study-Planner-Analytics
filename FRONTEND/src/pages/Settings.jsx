@@ -1,23 +1,76 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { useAppearance, ACCENT_PALETTE } from '../components/AppearanceProvider';
-import { User, Bell, Clock, Palette, Shield, ChevronRight, Check, Sun, Moon } from 'lucide-react';
+import { User, Clock, Palette, Shield, ChevronRight, Check, Sun, Moon } from 'lucide-react';
 
 const sections = [
-  { id: 'profile',       label: 'Profile',        icon: User,    desc: 'Manage your account information' },
-  { id: 'notifications', label: 'Notifications',  icon: Bell,    desc: 'Alerts and reminders'            },
-  { id: 'timer',         label: 'Study Timer',    icon: Clock,   desc: 'Pomodoro and session settings'  },
-  { id: 'appearance',   label: 'Appearance',     icon: Palette, desc: 'Theme and display preferences'  },
-  { id: 'privacy',       label: 'Privacy & Data', icon: Shield,  desc: 'Data and account security'      },
+  { id: 'profile',    label: 'Profile',        icon: User,    desc: 'Manage your account information' },
+  { id: 'timer',      label: 'Study Timer',    icon: Clock,   desc: 'Pomodoro and session settings'  },
+  { id: 'appearance', label: 'Appearance',     icon: Palette, desc: 'Theme and display preferences'  },
+  { id: 'privacy',    label: 'Privacy & Data', icon: Shield,  desc: 'Data and account security'      },
 ];
+
+const LS_SETTINGS_KEY = 'sf_settings';
+
+const defaultProfile = {
+  name: 'studyflow', email: 'secret@gmail.com', username: 'mrnski',
+  bio: 'CS student passionate about math and physics. Aiming for a perfect GPA!',
+  timezone: 'America/New_York', studyGoal: '4',
+};
+
+const defaultTimer = {
+  focusDuration: '25', shortBreak: '5', longBreak: '15',
+  sessionsBeforeLong: '4', autoStartBreaks: true, autoStartSessions: false,
+  soundEnabled: true, notifyOnComplete: true,
+};
 
 function Toggle({ value, onChange, accentRgb, colors }) {
   return (
     <button onClick={() => onChange(!value)} role="switch" aria-checked={value}
       className="flex-shrink-0 rounded-full relative"
-      style={{ width: 40, height: 22, background: value ? `rgb(${accentRgb})` : colors.border, boxShadow: value ? `0 0 10px rgba(${accentRgb},0.4)` : 'none', transition: 'background 200ms', border: 'none', cursor: 'pointer' }}>
+      style={{
+        width: 42,
+        height: 24,
+        background: value ? `linear-gradient(135deg, rgba(${accentRgb},1), rgba(${accentRgb},0.88))` : colors.border,
+        boxShadow: value ? `0 12px 24px rgba(${accentRgb},0.18)` : 'inset 0 0 0 1px rgba(255,255,255,0.08)',
+        transition: 'background 260ms cubic-bezier(0.22,1,0.36,1), box-shadow 260ms cubic-bezier(0.22,1,0.36,1)',
+        border: 'none',
+        cursor: 'pointer',
+      }}>
       <div className="absolute top-0.5 rounded-full bg-white"
-        style={{ width: 18, height: 18, left: 2, transform: value ? 'translateX(18px)' : 'translateX(0)', transition: 'transform 200ms cubic-bezier(0.4,0,0.2,1)' }} />
+        style={{
+          width: 19,
+          height: 19,
+          left: 2,
+          transform: value ? 'translateX(18px)' : 'translateX(0)',
+          transition: 'transform 260ms cubic-bezier(0.22,1,0.36,1)',
+          boxShadow: '0 12px 24px rgba(15,23,42,0.12)',
+        }} />
     </button>
+  );
+}
+
+function loadSavedSettings() {
+  try {
+    const raw = localStorage.getItem(LS_SETTINGS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSettingsLocally(payload) {
+  localStorage.setItem(LS_SETTINGS_KEY, JSON.stringify(payload));
+  window.dispatchEvent(new CustomEvent('studyTimerSettingsUpdated', { detail: payload }));
+}
+
+function InputField({ label, value, onChange, type = 'text', placeholder = '', inputStyle, colors }) {
+  return (
+    <div>
+      <label className="block text-xs mb-1.5" style={{ fontWeight: 500, color: colors.textSub }}>{label}</label>
+      <input type={type} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={inputStyle}
+        value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} />
+    </div>
   );
 }
 
@@ -29,35 +82,55 @@ export function Settings() {
     setTheme, setAccent, setCompact, setAnimations, setShowXPBar, setShowStreak,
   } = useAppearance();
 
-  const [profile, setProfile] = useState({
-    name: 'Moran', email: 'secret@gmail.com', username: 'mrnski',
-    bio: 'CS student passionate about math and physics. Aiming for a perfect GPA!',
-    timezone: 'America/New_York', studyGoal: '4',
-  });
-  const [notifs, setNotifs] = useState({
-    taskReminders: true, breakReminders: true, dailyDigest: false,
-    achievementAlerts: true, streakWarning: true, weeklyReport: true,
-    emailNotifs: false, soundAlerts: true,
-  });
-  const [timer, setTimer] = useState({
-    focusDuration: '25', shortBreak: '5', longBreak: '15',
-    sessionsBeforeLong: '4', autoStartBreaks: true, autoStartSessions: false,
-    soundEnabled: true, notifyOnComplete: true,
-  });
-  const [saved, setSaved] = useState(false);
-  const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  const [savedSettings, setSavedSettings] = useState(null);
+  const [profile, setProfile] = useState(defaultProfile);
+  const [timer,   setTimer]   = useState(defaultTimer);
+  const [saved,   setSaved]   = useState(false);
 
-  const inputStyle = { background: colors.card2, border: `1px solid ${colors.border}`, color: colors.text, colorScheme: colors.inputScheme };
+  useEffect(() => {
+    const local = loadSavedSettings();
+    if (local) {
+      setSavedSettings(local);
+      setProfile(local.profile || defaultProfile);
+      setTimer(local.timer   || defaultTimer);
+    } else {
+      axios.get('/api/settings')
+        .then(res => {
+          const data = res.data;
+          const payload = {
+            profile: data.profile || defaultProfile,
+            timer:   data.timer   || defaultTimer,
+          };
+          setSavedSettings(payload);
+          setProfile(payload.profile);
+          setTimer(payload.timer);
+          saveSettingsLocally(payload);
+        })
+        .catch(err => {
+          console.error('Failed to load settings:', err);
+          setSavedSettings({ profile: defaultProfile, timer: defaultTimer });
+        });
+    }
+  }, []);
 
-  function InputField({ label, value, onChange, type = 'text', placeholder = '' }) {
-    return (
-      <div>
-        <label className="block text-xs mb-1.5" style={{ fontWeight: 500, color: colors.textSub }}>{label}</label>
-        <input type={type} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={inputStyle}
-          value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} />
-      </div>
-    );
-  }
+  const handleSave = async () => {
+    const payload = { profile, timer };
+    saveSettingsLocally(payload);
+    try {
+      await axios.put('/api/settings', payload);
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+    }
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const inputStyle = {
+    background: colors.card2,
+    border: `1px solid ${colors.border}`,
+    color: colors.text,
+    colorScheme: colors.inputScheme,
+  };
 
   const renderSection = () => {
     switch (activeSection) {
@@ -65,13 +138,15 @@ export function Settings() {
       case 'profile':
         return (
           <div className="space-y-5">
-            <div className="flex items-center gap-5 p-5 rounded-2xl" style={{ background: colors.card2, border: `1px solid ${colors.border}` }}>
+            <div className="flex items-center gap-5 p-5 rounded-2xl"
+              style={{ background: colors.card2, border: `1px solid ${colors.border}` }}>
               <div className="relative">
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl text-white"
                   style={{ fontWeight: 800, background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, boxShadow: `0 0 20px rgba(${accent.rgb},0.4)` }}>
                   AJ
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#22c55e', border: `2px solid ${colors.bg}` }}>
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
+                  style={{ background: '#22c55e', border: `2px solid ${colors.bg}` }}>
                   <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
                 </div>
               </div>
@@ -82,9 +157,9 @@ export function Settings() {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField label="Full Name"     value={profile.name}     onChange={v => setProfile({ ...profile, name: v })} />
-              <InputField label="Username"      value={profile.username} onChange={v => setProfile({ ...profile, username: v })} />
-              <InputField label="Email Address" type="email" value={profile.email} onChange={v => setProfile({ ...profile, email: v })} />
+              <InputField label="Full Name"     value={profile.name}     onChange={v => setProfile({ ...profile, name: v })}     inputStyle={inputStyle} colors={colors} />
+              <InputField label="Username"      value={profile.username} onChange={v => setProfile({ ...profile, username: v })} inputStyle={inputStyle} colors={colors} />
+              <InputField label="Email Address" type="email" value={profile.email} onChange={v => setProfile({ ...profile, email: v })} inputStyle={inputStyle} colors={colors} />
               <div>
                 <label className="block text-xs mb-1.5" style={{ fontWeight: 500, color: colors.textSub }}>Timezone</label>
                 <select className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={inputStyle}
@@ -108,30 +183,6 @@ export function Settings() {
                   style={inputStyle} value={profile.studyGoal} onChange={e => setProfile({ ...profile, studyGoal: e.target.value })} />
               </div>
             </div>
-          </div>
-        );
-
-      case 'notifications':
-        return (
-          <div className="space-y-3">
-            {[
-              { key: 'taskReminders',     label: 'Task Reminders',         desc: 'Get notified before scheduled study sessions' },
-              { key: 'breakReminders',    label: 'Break Reminders',        desc: 'Remind me to take breaks during long sessions' },
-              { key: 'achievementAlerts', label: 'Achievement Alerts',     desc: 'Notify when you earn a new badge or level up' },
-              { key: 'streakWarning',     label: 'Streak Warning',         desc: 'Alert when your streak is at risk of breaking' },
-              { key: 'dailyDigest',       label: 'Daily Digest',           desc: "Morning summary of today's study plan" },
-              { key: 'weeklyReport',      label: 'Weekly Report',          desc: 'Summary of your weekly performance' },
-              { key: 'emailNotifs',       label: 'Email Notifications',    desc: 'Receive updates via email' },
-              { key: 'soundAlerts',       label: 'Sound Alerts',           desc: 'Play audio cues for timer and events' },
-            ].map(n => (
-              <div key={n.key} className="flex items-center justify-between p-4 rounded-xl" style={{ background: colors.card2, border: `1px solid ${colors.border}` }}>
-                <div>
-                  <div className="text-sm" style={{ fontWeight: 500, color: colors.text }}>{n.label}</div>
-                  <div className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{n.desc}</div>
-                </div>
-                <Toggle value={notifs[n.key]} onChange={v => setNotifs({ ...notifs, [n.key]: v })} accentRgb={accent.rgb} colors={colors} />
-              </div>
-            ))}
           </div>
         );
 
@@ -164,11 +215,12 @@ export function Settings() {
             <div className="space-y-3">
               {[
                 { key: 'autoStartBreaks',   label: 'Auto-start Breaks',             desc: 'Automatically start break timer after focus session' },
-                { key: 'autoStartSessions', label: 'Auto-start Sessions',           desc: 'Automatically start next session after break' },
-                { key: 'soundEnabled',      label: 'Timer Sounds',                  desc: 'Play sound when timer completes' },
-                { key: 'notifyOnComplete',  label: 'Session Complete Notification', desc: 'Show notification when a session ends' },
+                { key: 'autoStartSessions', label: 'Auto-start Sessions',           desc: 'Automatically start next session after break'        },
+                { key: 'soundEnabled',      label: 'Timer Sounds',                  desc: 'Play sound when timer completes'                     },
+                { key: 'notifyOnComplete',  label: 'Session Complete Notification', desc: 'Show notification when a session ends'               },
               ].map(s => (
-                <div key={s.key} className="flex items-center justify-between p-4 rounded-xl" style={{ background: colors.card2, border: `1px solid ${colors.border}` }}>
+                <div key={s.key} className="flex items-center justify-between p-4 rounded-xl"
+                  style={{ background: colors.card2, border: `1px solid ${colors.border}` }}>
                   <div>
                     <div className="text-sm" style={{ fontWeight: 500, color: colors.text }}>{s.label}</div>
                     <div className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{s.desc}</div>
@@ -194,7 +246,8 @@ export function Settings() {
                 ].map(({ id, label, Icon, bg, card, border: pb }) => {
                   const isActive = theme === id;
                   return (
-                    <button key={id} onClick={() => setTheme(id)} className="relative p-4 rounded-2xl text-left transition-all"
+                    <button key={id} onClick={() => setTheme(id)}
+                      className="relative p-4 rounded-2xl text-left transition-all"
                       style={{ background: card, border: `2px solid ${isActive ? accent.main : pb}`, boxShadow: isActive ? `0 0 16px rgba(${accent.rgb},0.25)` : 'none' }}>
                       <div className="rounded-xl overflow-hidden mb-3" style={{ background: bg, border: `1px solid ${pb}` }}>
                         <div className="flex gap-1 p-2" style={{ background: card, borderBottom: `1px solid ${pb}` }}>
@@ -254,7 +307,8 @@ export function Settings() {
                 { key: 'xpbar',   label: 'Show XP Progress Bar', desc: 'Display level progress bar in the sidebar',             value: showXPBar,   set: setShowXPBar   },
                 { key: 'streak',  label: 'Show Streak Counter',  desc: 'Display your streak banner in the sidebar',             value: showStreak,  set: setShowStreak  },
               ].map(row => (
-                <div key={row.key} className="flex items-center justify-between p-4 rounded-xl" style={{ background: colors.card2, border: `1px solid ${colors.border}` }}>
+                <div key={row.key} className="flex items-center justify-between p-4 rounded-xl"
+                  style={{ background: colors.card2, border: `1px solid ${colors.border}` }}>
                   <div>
                     <div className="text-sm" style={{ fontWeight: 500, color: colors.text }}>{row.label}</div>
                     <div className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{row.desc}</div>
@@ -294,9 +348,9 @@ export function Settings() {
             <div className="p-5 rounded-2xl" style={{ background: colors.card2, border: `1px solid ${colors.border}` }}>
               <h4 className="text-sm mb-3" style={{ fontWeight: 600, color: colors.text }}>Change Password</h4>
               <div className="space-y-3">
-                <InputField label="Current Password"     type="password" value="" onChange={() => {}} placeholder="••••••••" />
-                <InputField label="New Password"         type="password" value="" onChange={() => {}} placeholder="••••••••" />
-                <InputField label="Confirm New Password" type="password" value="" onChange={() => {}} placeholder="••••••••" />
+                <InputField label="Current Password"     type="password" value="" onChange={() => {}} placeholder="••••••••" inputStyle={inputStyle} colors={colors} />
+                <InputField label="New Password"         type="password" value="" onChange={() => {}} placeholder="••••••••" inputStyle={inputStyle} colors={colors} />
+                <InputField label="Confirm New Password" type="password" value="" onChange={() => {}} placeholder="••••••••" inputStyle={inputStyle} colors={colors} />
                 <button className="px-4 py-2 rounded-xl text-white text-sm"
                   style={{ background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, fontWeight: 600 }}>
                   Update Password
@@ -306,7 +360,7 @@ export function Settings() {
             <div className="p-5 rounded-2xl" style={{ background: colors.card2, border: `1px solid ${colors.border}` }}>
               <h4 className="text-sm mb-3" style={{ fontWeight: 600, color: colors.text }}>Data & Export</h4>
               <div className="space-y-2">
-                {['Export study data (JSON)','Export notes (Markdown)','Download analytics report'].map(item => (
+                {['Export study data (JSON)', 'Export notes (Markdown)', 'Download analytics report'].map(item => (
                   <button key={item} className="w-full flex items-center justify-between p-3 rounded-xl text-sm"
                     style={{ background: colors.card, border: `1px solid ${colors.border}`, color: colors.textSub }}>
                     <span>{item}</span>
@@ -362,7 +416,8 @@ export function Settings() {
 
         {/* Content panel */}
         <div className="lg:col-span-3">
-          <div className="p-6 rounded-2xl mb-4" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+          <div key={activeSection} className="p-6 rounded-2xl mb-4 animate-in fade-in slide-in-from-top-2"
+            style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
             <h2 className="text-base mb-5" style={{ fontWeight: 600, color: colors.text }}>
               {sections.find(s => s.id === activeSection)?.label}
             </h2>
@@ -376,7 +431,7 @@ export function Settings() {
                 {saved && <Check className="w-4 h-4" />}
                 {saved ? 'Saved!' : 'Save Changes'}
               </button>
-              <p className="text-xs" style={{ color: colors.textMuted }}>Changes are saved to your local session</p>
+              <p className="text-xs" style={{ color: colors.textMuted }}>Changes are saved locally and will reload after refresh.</p>
             </div>
           )}
         </div>

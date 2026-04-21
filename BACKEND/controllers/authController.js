@@ -1,17 +1,52 @@
 import crypto from 'crypto';
 import dns    from 'dns';
-import User              from '../models/User.js';
-import { generateToken } from '../utils/generateToken.js';
+import { google }         from 'googleapis';
+import User               from '../models/User.js';
+import StudySession from '../models/studySessionModel.js';
+import Task               from '../models/Task.js';
+import Goal               from '../models/goalModel.js';
+import { generateToken }  from '../utils/generateToken.js';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/sendEmail.js';
+
+// ── Google OAuth2 Client ───────────────────────────────────────────────────────
+const oauth2Client = new google.auth.OAuth2(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  `${process.env.SERVER_URL}/api/auth/google/callback`
+);
+
+const GOOGLE_SCOPES = [
+  'openid',
+  'profile',
+  'email',
+  'https://www.googleapis.com/auth/calendar',
+  'https://www.googleapis.com/auth/calendar.events',
+];
+
+const GMAIL_DOMAINS = ['gmail.com', 'googlemail.com'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const safeUser = (user) => ({
-  id:         user._id,
-  name:       user.name,
-  email:      user.email,
-  avatar:     user.avatar,
-  isVerified: user.isVerified,
+  id:                user._id,
+  name:              user.name,
+  email:             user.email,
+  avatar:            user.avatar,
+  isVerified:        user.isVerified,
+  hasGoogleCalendar: !!user.googleRefreshToken,
 });
+
+const buildGoogleAuthUrl = (hintEmail = '') => {
+  const params = {
+    access_type: 'offline',
+    prompt:      'consent',
+    scope:       GOOGLE_SCOPES,
+  };
+  if (hintEmail) params.login_hint = hintEmail;
+  return oauth2Client.generateAuthUrl(params);
+};
+
+const isGmailUser = (email) =>
+  GMAIL_DOMAINS.includes(email.split('@')[1]?.toLowerCase() || '');
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
 export const register = async (req, res) => {
@@ -24,24 +59,19 @@ export const register = async (req, res) => {
     name  = name.trim().replace(/</g, '&lt;').replace(/>/g, '&gt;');
     email = email.trim().toLowerCase();
 
-    // Stronger regex — enforces valid chars and TLD of at least 2 letters
     if (!/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email))
       return res.status(400).json({ message: 'Please enter a valid email address.' });
 
-    // DNS MX record check — rejects domains that don't exist or can't receive email
-    // Uses Node's built-in dns module, no extra packages needed
     const emailDomain = email.split('@')[1];
     try {
       const mxRecords = await dns.promises.resolveMx(emailDomain);
       if (!mxRecords || mxRecords.length === 0) throw new Error('No MX records');
     } catch (dnsErr) {
-      // ENOTFOUND = domain doesn't exist, ENODATA/ESERVFAIL = no mail records
       if (['ENOTFOUND', 'ENODATA', 'ESERVFAIL'].includes(dnsErr.code)) {
         return res.status(400).json({
           message: `The email domain "@${emailDomain}" does not exist. Please use a valid email address.`,
         });
       }
-      // Any other DNS error (timeout, network) — allow through, don't block real users
       console.warn(`DNS check skipped for ${emailDomain}:`, dnsErr.message);
     }
 
@@ -50,6 +80,8 @@ export const register = async (req, res) => {
     if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password))
       return res.status(400).json({ message: 'Password must include uppercase, lowercase, and a number.' });
 
+    const googleAuthUrl = isGmailUser(email) ? buildGoogleAuthUrl(email) : null;
+
     const existing = await User.findOne({ email });
     if (existing) {
       if (!existing.isVerified) {
@@ -57,7 +89,12 @@ export const register = async (req, res) => {
         await existing.save();
         const url = `${process.env.SERVER_URL}/api/auth/verify-email?token=${rawToken}`;
         try {
-          await sendVerificationEmail({ name: existing.name, email: existing.email, verificationUrl: url });
+          await sendVerificationEmail({
+            name:            existing.name,
+            email:           existing.email,
+            verificationUrl: url,
+            googleAuthUrl,
+          });
         } catch (emailErr) {
           console.error('Resend verification email failed:', emailErr.message);
         }
@@ -76,7 +113,12 @@ export const register = async (req, res) => {
     const url = `${process.env.SERVER_URL}/api/auth/verify-email?token=${rawToken}`;
 
     try {
-      await sendVerificationEmail({ name: user.name, email: user.email, verificationUrl: url });
+      await sendVerificationEmail({
+        name:            user.name,
+        email:           user.email,
+        verificationUrl: url,
+        googleAuthUrl,
+      });
     } catch (emailErr) {
       console.error('Verification email failed to send:', emailErr.message);
       return res.status(201).json({
@@ -108,13 +150,13 @@ export const login = async (req, res) => {
 
     const user = await User.findOne({ email }).select('+password');
 
-    // Specific messages — intentional for student app UX
     if (!user)
       return res.status(404).json({ message: 'No account found with that email address.' });
 
     if (!user.password)
       return res.status(400).json({
-        message: "This account uses Google sign-in. Please click 'Continue with Google' instead.",
+        message:        "This account uses Google sign-in. Please click 'Continue with Google' instead.",
+        isGoogleSignIn: true,
       });
 
     const isMatch = await user.comparePassword(password);
@@ -159,12 +201,71 @@ export const verifyEmail = async (req, res) => {
     user.verificationExpires = undefined;
     await user.save();
 
+    if (isGmailUser(user.email)) {
+      const googleUrl = buildGoogleAuthUrl(user.email);
+      return res.redirect(googleUrl);
+    }
+
     const jwtToken = generateToken(user._id);
     res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${jwtToken}&verified=true`);
 
   } catch (err) {
     console.error('Verify email error:', err);
     res.redirect(`${process.env.CLIENT_URL}/login?error=server_error`);
+  }
+};
+
+// ── GET /api/auth/google/url ──────────────────────────────────────────────────
+export const getGoogleAuthUrl = (req, res) => {
+  const { hint } = req.query;
+  const url = buildGoogleAuthUrl(hint || '');
+  res.json({ url });
+};
+
+// ── GET /api/auth/google/callback ─────────────────────────────────────────────
+export const googleCallback = async (req, res) => {
+  try {
+    const { code, error } = req.query;
+
+    if (error || !code)
+      return res.redirect(`${process.env.CLIENT_URL}/login?error=google_cancelled`);
+
+    const { tokens } = await oauth2Client.getToken(code);
+    oauth2Client.setCredentials(tokens);
+
+    const oauth2   = google.oauth2({ version: 'v2', auth: oauth2Client });
+    const { data } = await oauth2.userinfo.get();
+    const { id: googleId, email, name, picture } = data;
+
+    if (!email)
+      return res.redirect(`${process.env.CLIENT_URL}/login?error=no_email`);
+
+    let user = await User.findOne({ googleId });
+
+    if (!user) {
+      user = await User.findOne({ email });
+      if (user) {
+        user.googleId   = googleId;
+        user.avatar     = user.avatar || picture;
+        user.isVerified = true;
+      } else {
+        user = new User({ name, email, googleId, avatar: picture, isVerified: true });
+      }
+    }
+
+    user.googleAccessToken = tokens.access_token;
+    user.googleTokenExpiry = tokens.expiry_date;
+    if (tokens.refresh_token) {
+      user.googleRefreshToken = tokens.refresh_token;
+    }
+    await user.save();
+
+    const jwtToken = generateToken(user._id);
+    res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${jwtToken}&verified=true`);
+
+  } catch (err) {
+    console.error('Google callback error:', err);
+    res.redirect(`${process.env.CLIENT_URL}/login?error=google_failed`);
   }
 };
 
@@ -221,24 +322,27 @@ export const forgotPassword = async (req, res) => {
 
     const user = await User.findOne({ email: email.trim().toLowerCase() });
 
-    // Always return the same message — prevents email enumeration
     const safeMsg = 'If that email is registered, you will receive a reset link shortly.';
 
     if (!user) return res.status(200).json({ message: safeMsg });
 
-    // Google-only users have no password to reset
     if (user.googleId && !user.password)
-      return res.status(200).json({ message: safeMsg });
+      return res.status(200).json({
+        message:         'This account was created with Google. Please use "Continue with Google" to sign in.',
+        isGoogleAccount: true,
+      });
 
     const rawToken = user.createPasswordResetToken();
-    await user.save();
-
     const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${rawToken}`;
 
     try {
       await sendPasswordResetEmail({ name: user.name, email: user.email, resetUrl });
+      await user.save();
     } catch (emailErr) {
       console.error('Password reset email failed to send:', emailErr.message);
+      return res.status(500).json({
+        message: 'We could not send the reset email. Please try again later.',
+      });
     }
 
     res.status(200).json({ message: safeMsg });
@@ -300,5 +404,29 @@ export const getMe = async (req, res) => {
   } catch (err) {
     console.error('GetMe error:', err);
     res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// ── DELETE /api/auth/delete-account ──────────────────────────────────────────
+export const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Cascade delete — tanggalin lahat ng data ng user
+    await Promise.all([
+      StudySession.deleteMany({ user: userId }),
+      Task        .deleteMany({ user: userId }),
+      Goal        .deleteMany({ user: userId }),
+      Notification.deleteMany({ user: userId }),
+    ]);
+
+    // Tanggalin ang user mismo
+    await User.findByIdAndDelete(userId);
+
+    res.status(200).json({ message: 'Account and all associated data have been deleted.' });
+
+  } catch (err) {
+    console.error('Delete account error:', err);
+    res.status(500).json({ message: 'Server error. Could not delete account.' });
   }
 };

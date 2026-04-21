@@ -1,19 +1,20 @@
-import express    from 'express';
-import dotenv     from 'dotenv';
-import cors       from 'cors';
-import helmet     from 'helmet';
-import connectDB  from './config/db.js';
-import authRoutes from './routes/authRoutes.js';
+import 'dotenv/config';
+import express   from 'express';
+import cors      from 'cors';
+import helmet    from 'helmet';
+import connectDB from './config/db.js';
+import authRoutes          from './routes/authRoutes.js';
+import goalRoutes          from './routes/goalRoutes.js';
+import taskRoutes          from './routes/taskRoutes.js';
+import timerRoutes         from './routes/timerRoutes.js';
+import achievementsRoutes  from './routes/achievementsRoutes.js';
 
-dotenv.config();
 connectDB();
 
 const app = express();
 
 // ── Security ──────────────────────────────────────────────────────────────────
 app.use(helmet({
-  // Default helmet sets COOP: same-origin which blocks the Google OAuth
-  // popup from posting back to your app. Must be relaxed.
   crossOriginOpenerPolicy: { policy: 'unsafe-none' },
 }));
 
@@ -24,7 +25,11 @@ app.use(cors({
 app.use(express.json({ limit: '10kb' }));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
-app.use('/api/auth', authRoutes);
+app.use('/api/auth',          authRoutes);
+app.use('/api/goals',         goalRoutes);
+app.use('/api/tasks',         taskRoutes);
+app.use('/api/study-timer',   timerRoutes);
+app.use('/api/achievements',  achievementsRoutes);
 
 app.get('/', (req, res) => res.send('StudyFlow API is running ✅'));
 
