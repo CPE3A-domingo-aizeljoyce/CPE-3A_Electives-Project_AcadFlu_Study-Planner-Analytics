@@ -7,6 +7,7 @@ import {
   Crown, Shield, Library, RefreshCw,
 } from 'lucide-react';
 import { fetchAchievements, triggerAchievementCheck } from '../api/achievementsApi';
+import confetti from 'canvas-confetti';
 
 // ─── Icon map: backend iconKey → Lucide component ─────────────────────────────
 const ICON_MAP = {
@@ -17,7 +18,7 @@ const ICON_MAP = {
 
 // ─── Rarity styles ────────────────────────────────────────────────────────────
 const rarityConfig = {
-  common:    { color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', label: 'Common',    border: 'rgba(148,163,184,0.2)' },
+  common:    { color: '#ec4899', bg: 'rgba(236,72,153,0.12)', label: 'Common',    border: 'rgba(236,72,153,0.3)' },
   rare:      { color: '#6366f1', bg: 'rgba(99,102,241,0.12)',  label: 'Rare',      border: 'rgba(99,102,241,0.3)'  },
   epic:      { color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)', label: 'Epic',      border: 'rgba(139,92,246,0.3)'  },
   legendary: { color: '#fbbf24', bg: 'rgba(251,191,36,0.12)', label: 'Legendary', border: 'rgba(251,191,36,0.3)'  },
@@ -53,7 +54,12 @@ export function Achievements() {
   const [filter,       setFilter]       = useState('All');
   const [showLocked,   setShowLocked]   = useState(true);
 
-  // ── Load achievements from backend ────────────────────────────────────────
+  // ── LOCAL CLAIM STATE ────────────────────
+  const [claimedBadges, setClaimedBadges] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('sf_claimed_badges')) || []; }
+    catch { return []; }
+  });
+
   const loadAchievements = async () => {
     try {
       setLoading(true);
@@ -69,7 +75,6 @@ export function Achievements() {
     }
   };
 
-  // ── Trigger a fresh check + reload ────────────────────────────────────────
   const handleCheck = async () => {
     try {
       setChecking(true);
@@ -80,6 +85,29 @@ export function Achievements() {
     } finally {
       setChecking(false);
     }
+  };
+
+  // ── HANDLE CLAIM BUTTON + CONFETTI ────────────────────────────────────────
+  const handleClaim = (badge) => {
+    const nextClaimed = [...claimedBadges, badge.id];
+    setClaimedBadges(nextClaimed);
+    localStorage.setItem('sf_claimed_badges', JSON.stringify(nextClaimed));
+
+    setStats(prevStats => {
+      if (!prevStats) return prevStats;
+      return {
+        ...prevStats,
+        totalXP: prevStats.totalXP + (badge.xp || 0),
+        unlockedCount: prevStats.unlockedCount + 1
+      };
+    });
+
+    confetti({
+      particleCount: 180,
+      spread: 90,
+      origin: { y: 0.6 },
+      colors: [badge.color || rarityConfig[badge.rarity]?.color || '#ec4899', '#ffffff', '#f59e0b']
+    });
   };
 
   useEffect(() => {
@@ -95,7 +123,7 @@ export function Achievements() {
   });
 
   const recentlyUnlocked = achievements
-    .filter(b => b.unlocked && b.unlockedAt)
+    .filter(b => b.unlocked && b.unlockedAt && claimedBadges.includes(b.id))
     .sort((a, b) => new Date(b.unlockedAt) - new Date(a.unlockedAt))
     .slice(0, 3);
 
@@ -192,24 +220,35 @@ export function Achievements() {
           {/* Badges */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {filtered.map(badge => {
-              const rarity    = rarityConfig[badge.rarity] || rarityConfig.common;
-              const IconComp  = ICON_MAP[badge.iconKey] || Trophy;
-              const pct       = badge.progress?.total
+              const rarity         = rarityConfig[badge.rarity] || rarityConfig.common;
+              const IconComp       = ICON_MAP[badge.iconKey] || Trophy;
+              
+
+              const isBackendUnlocked = true; 
+              
+              const isClaimed         = claimedBadges.includes(badge.id); 
+              const isReadyToClaim    = isBackendUnlocked && !isClaimed;
+
+              const pct = badge.progress?.total
                 ? Math.round((badge.progress.current / badge.progress.total) * 100)
                 : 0;
+
               return (
-                <div key={badge.id} className="p-4 rounded-2xl transition-all duration-200 hover:scale-[1.02] relative overflow-hidden"
+                <div key={badge.id} 
+                  onClick={() => isReadyToClaim && handleClaim(badge)}
+                  className={`p-4 rounded-2xl transition-all duration-200 relative overflow-hidden ${isReadyToClaim ? 'animate-pulse hover:scale-105 cursor-pointer' : 'hover:scale-[1.02]'}`}
                   style={{
-                    background:  badge.unlocked ? rarity.bg : `rgba(${accent.rgb},0.02)`,
-                    border:      `1px solid ${badge.unlocked ? rarity.border : colors.border}`,
-                    boxShadow:   badge.unlocked ? `0 4px 20px ${rarity.color}20` : 'none',
-                    opacity:     badge.unlocked ? 1 : 0.6,
+                    background: colors.card,
+                    border: `1px solid ${isReadyToClaim ? accent.main : isClaimed ? rarity.border : colors.border}`,
+                    boxShadow: isReadyToClaim ? `0 0 15px rgba(${accent.rgb},0.3)` : 'none',
+                    opacity: isBackendUnlocked ? 1 : 0.6,
                   }}>
+                  
                   <div className="flex items-start justify-between mb-3">
                     <div className="relative w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: `${badge.color}20`, border: `1px solid ${badge.color}30` }}>
-                      <IconComp className="w-5 h-5" style={{ color: badge.unlocked ? badge.color : colors.textMuted }} />
-                      {!badge.unlocked && (
+                      style={{ background: `${badge.color || rarity.color}15`, border: `1px solid ${badge.color || rarity.color}30` }}>
+                      <IconComp className="w-5 h-5" style={{ color: isBackendUnlocked ? (badge.color || rarity.color) : colors.textMuted }} />
+                      {!isBackendUnlocked && (
                         <div className="absolute inset-0 flex items-center justify-center rounded-xl"
                           style={{ background: 'rgba(13,17,23,0.6)' }}>
                           <Lock className="w-3.5 h-3.5" style={{ color: colors.textMuted }} />
@@ -217,7 +256,7 @@ export function Achievements() {
                       )}
                     </div>
                     <span className="text-xs px-2 py-0.5 rounded-md"
-                      style={{ background: `${rarity.color}20`, color: rarity.color, fontWeight: 600 }}>
+                      style={{ background: `${rarity.color}15`, color: rarity.color, fontWeight: 600 }}>
                       {rarity.label}
                     </span>
                   </div>
@@ -225,7 +264,15 @@ export function Achievements() {
                   <div className="text-xs mb-0.5" style={{ fontWeight: 600, color: colors.text }}>{badge.name}</div>
                   <div className="text-xs mb-2 leading-4" style={{ color: colors.textMuted }}>{badge.description}</div>
 
-                  {badge.unlocked ? (
+                  {/* UI STATE: READY TO CLAIM */}
+                  {isReadyToClaim ? (
+                    <div className="mt-3 flex items-center justify-center py-1.5 rounded-lg text-white text-xs font-bold transition-all"
+                         style={{ background: accent.main, boxShadow: `0 4px 10px rgba(${accent.rgb}, 0.3)` }}>
+                        Claim XP!
+                    </div>
+
+       
+                  ) : isClaimed ? (
                     <div className="flex items-center gap-1">
                       <Zap className="w-3 h-3" style={{ color: accent.main }} />
                       <span className="text-xs" style={{ fontWeight: 600, color: accent.main }}>+{badge.xp} XP</span>
@@ -235,6 +282,8 @@ export function Achievements() {
                         </span>
                       )}
                     </div>
+
+                  // UI STATE: STILL LOCKED (IN PROGRESS)
                   ) : badge.progress?.total > 1 ? (
                     <div>
                       <div className="flex justify-between mb-1">
@@ -246,6 +295,8 @@ export function Achievements() {
                           style={{ width: `${pct}%`, background: rarity.color }} />
                       </div>
                     </div>
+
+                  // UI STATE: STILL LOCKED (NO PROGRESS BAR)
                   ) : (
                     <span className="text-xs" style={{ color: colors.textMuted }}>+{badge.xp} XP on unlock</span>
                   )}
@@ -332,8 +383,8 @@ export function Achievements() {
                   <div key={badge.id} className="flex items-center gap-3 p-3 rounded-xl"
                     style={{ background: rarity.bg, border: `1px solid ${rarity.border}` }}>
                     <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: `${badge.color}20` }}>
-                      <IconComp className="w-4 h-4" style={{ color: badge.color }} />
+                      style={{ background: `${badge.color || rarity.color}20` }}>
+                      <IconComp className="w-4 h-4" style={{ color: badge.color || rarity.color }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-xs truncate" style={{ fontWeight: 600, color: colors.text }}>{badge.name}</div>
