@@ -207,7 +207,7 @@ export const verifyEmail = async (req, res) => {
     }
 
     const jwtToken = generateToken(user._id);
-    res.redirect(`${process.env.FRONTEND_URL}/#/auth/callback?token=...`);
+    res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${jwtToken}&verified=true`);
 
   } catch (err) {
     console.error('Verify email error:', err);
@@ -320,12 +320,16 @@ export const forgotPassword = async (req, res) => {
     if (!email)
       return res.status(400).json({ message: 'Email is required.' });
 
-    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    // ✅ FIX: Added .select('+password') — password field has select:false in the model,
+    // so without this, user.password is always undefined, making all Gmail users
+    // (who have googleId set from verification flow) appear as Google-only accounts.
+    const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password');
 
     const safeMsg = 'If that email is registered, you will receive a reset link shortly.';
 
     if (!user) return res.status(200).json({ message: safeMsg });
 
+    // Only block reset if it's a pure Google account (googleId set AND no password at all)
     if (user.googleId && !user.password)
       return res.status(200).json({
         message:         'This account was created with Google. Please use "Continue with Google" to sign in.',
