@@ -1,36 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useAppearance } from '../components/AppearanceProvider';
-import { Plus, Search, Trash2, BookOpen, Clock, Tag, FileText, ArrowLeft } from 'lucide-react';
+import { Plus, Search, Trash2, BookOpen, Clock, Tag, FileText, ArrowLeft, AlertCircle } from 'lucide-react';
+import { fetchNotes, createNote, deleteNoteAPI, updateNoteAPI } from '../api/notesApi';
 
 const subjectColors = {
   Mathematics: '#6366f1', Physics: '#22c55e', Chemistry: '#f97316',
   Biology: '#8b5cf6', English: '#06b6d4', History: '#fbbf24', General: '#94a3b8',
 };
 
-const initialNotes = [
-  {
-    id: 1, title: 'Calculus – Integration by Parts', subject: 'Mathematics',
-    content: '**Integration by Parts Formula:**\n∫u dv = uv − ∫v du\n\nKey rule: LIATE (Logarithmic, Inverse trig, Algebraic, Trig, Exponential)\n\nExample: ∫x·eˣ dx = x·eˣ − eˣ + C\n\nAlways choose u as the function whose derivative simplifies the integral.',
-    tags: ['calculus','integration','formula'], createdAt: '2026-03-25 09:30', color: '#6366f1',
-  },
-  {
-    id: 2, title: "Newton's Laws Summary", subject: 'Physics',
-    content: "**1st Law (Inertia):** An object at rest stays at rest, and an object in motion stays in motion unless acted upon by an external force.\n\n**2nd Law (F=ma):** The acceleration of an object is directly proportional to the net force acting on it.\n\n**3rd Law:** For every action, there is an equal and opposite reaction.",
-    tags: ['mechanics','laws','newton'], createdAt: '2026-03-24 14:15', color: '#22c55e',
-  },
-  {
-    id: 3, title: 'Organic Chemistry – Functional Groups', subject: 'Chemistry',
-    content: '**Key Functional Groups:**\n• Alkyl halides: –X (F, Cl, Br, I)\n• Alcohols: –OH\n• Aldehydes: –CHO\n• Ketones: C=O (internal)\n• Carboxylic acids: –COOH\n• Amines: –NH₂\n\nFunctional groups determine chemical reactivity.',
-    tags: ['organic','functional groups','reactions'], createdAt: '2026-03-23 11:00', color: '#f97316',
-  },
-  {
-    id: 4, title: 'Essay Structure Tips', subject: 'English',
-    content: '**PEEL Structure:**\n• **Point:** State your argument clearly\n• **Evidence:** Provide supporting evidence\n• **Explain:** Explain how evidence supports your point\n• **Link:** Connect back to the question\n\nIntroduction: hook, context, thesis.\nConclusion: restate, summarize, broader implications.',
-    tags: ['writing','essay','structure'], createdAt: '2026-03-22 16:45', color: '#06b6d4',
-  },
-];
-
-const subjects = ['General','Mathematics','Physics','Chemistry','Biology','English','History'];
+const subjects = ['General','Mathematics','Physics','Chemistry','Biology','English','History', 'Other...'];
 
 function useIsMobile(breakpoint = 640) {
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < breakpoint : false);
@@ -42,60 +20,124 @@ function useIsMobile(breakpoint = 640) {
   return isMobile;
 }
 
+const formatDate = (dateString) => {
+  if (!dateString) return '';
+  return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
 export function Notes() {
-  const [notes, setNotes]       = useState(initialNotes);
-  const [selected, setSelected] = useState(initialNotes[0]);
+  const [notes, setNotes]       = useState([]);
+  const [selected, setSelected] = useState(null);
   const [search, setSearch]     = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing]   = useState(false);
   const [editContent, setEditContent] = useState('');
   const [newNote, setNewNote]   = useState({ title: '', content: '', subject: 'General', tags: '' });
-  const [mobilePanel, setMobilePanel] = useState('list'); // 'list' | 'detail'
+  
+  const [customSubject, setCustomSubject] = useState('');
+  const [isSaving, setIsSaving] = useState(false); 
+  const [errorMsg, setErrorMsg] = useState('');
+  
+  const [mobilePanel, setMobilePanel] = useState('list');
 
   const { colors, accent } = useAppearance();
   const isMobile = useIsMobile(640);
   const inputStyle = { background: colors.card2, border: `1px solid ${colors.border}`, color: colors.text };
 
-  const filtered = notes.filter(n =>
-    n.title.toLowerCase().includes(search.toLowerCase()) ||
-    n.content.toLowerCase().includes(search.toLowerCase()) ||
-    n.subject.toLowerCase().includes(search.toLowerCase())
+  useEffect(() => {
+    const getRealNotes = async () => {
+      try {
+        const data = await fetchNotes();
+        if (Array.isArray(data)) {
+          setNotes(data);
+        } else {
+          console.warn("Backend did not return an array:", data);
+          setNotes([]); 
+        }
+      } catch (error) {
+        console.error("Failed to load notes:", error);
+        setNotes([]);
+      }
+    };
+    getRealNotes();
+  }, []);
+
+    const safeNotes = Array.isArray(notes) ? notes : [];
+  
+  const filtered = safeNotes.filter(n =>
+    n?.title?.toLowerCase().includes(search.toLowerCase()) ||
+    n?.content?.toLowerCase().includes(search.toLowerCase()) ||
+    n?.subject?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const addNote = () => {
-    if (!newNote.title.trim()) return;
-    const note = {
-      id: Date.now(), title: newNote.title, content: newNote.content,
-      subject: newNote.subject,
-      tags: newNote.tags.split(',').map(t => t.trim()).filter(Boolean),
-      createdAt: new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }),
-      color: subjectColors[newNote.subject] || '#94a3b8',
-    };
-    setNotes(prev => [note, ...prev]);
-    setSelected(note);
-    setNewNote({ title: '', content: '', subject: 'General', tags: '' });
-    setShowForm(false);
-    if (isMobile) setMobilePanel('detail');
+  const addNote = async () => {
+    if (!newNote.title.trim() || !newNote.content.trim()) {
+      setErrorMsg("Title and Content are required to save a note.");
+      setTimeout(() => setErrorMsg(''), 3500);  
+      return;
+    }
+
+    const finalSubject = newNote.subject === 'Other...' 
+      ? (customSubject.trim() || 'General') 
+      : newNote.subject;
+
+    setIsSaving(true);
+    setErrorMsg(''); 
+
+    try {
+      const noteData = {
+        title: newNote.title,
+        content: newNote.content,
+        subject: finalSubject,
+        tags: newNote.tags ? newNote.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        color: subjectColors[finalSubject] || '#94a3b8',
+      };
+      
+      const savedNote = await createNote(noteData); 
+      setNotes(prev => [savedNote, ...prev]);
+      setSelected(savedNote);
+      setNewNote({ title: '', content: '', subject: 'General', tags: '' });
+      setCustomSubject('');
+      setShowForm(false);
+      if (isMobile) setMobilePanel('detail');
+    } catch (error) {
+      console.error("Failed to save note:", error);
+      setErrorMsg("Failed to save. Please check your connection or login again.");
+      setTimeout(() => setErrorMsg(''), 3500);
+    } finally {
+      setIsSaving(false); 
+    }
   };
 
-  const deleteNote = (id) => {
-    setNotes(prev => prev.filter(n => n.id !== id));
-    if (selected?.id === id) { setSelected(null); setMobilePanel('list'); }
+  const deleteNote = async (id) => {
+    try {
+      await deleteNoteAPI(id); 
+      setNotes(prev => prev.filter(n => n._id !== id));
+      if (selected?._id === id) { setSelected(null); setMobilePanel('list'); }
+    } catch (error) {
+      console.error("Failed to delete note:", error);
+    }
   };
 
-  const saveEdit = () => {
-    if (!selected) return;
-    setNotes(prev => prev.map(n => n.id === selected.id ? { ...n, content: editContent } : n));
-    setSelected(prev => prev ? { ...prev, content: editContent } : null);
+  const saveEdit = async () => {
+  if (!selected) return;
+  try {
+    const updatedNote = await updateNoteAPI(selected._id, { content: editContent });
+
+    setNotes(prev => prev.map(n => n._id === selected._id ? { ...n, content: updatedNote.content } : n));
+    setSelected(prev => prev ? { ...prev, content: updatedNote.content } : null);
     setEditing(false);
-  };
+  } catch (error) {
+    console.error("Failed to update note:", error);
+    alert("Failed to save edits.");
+  }
+};
 
   const openNote = (note) => {
     setSelected(note);
     if (isMobile) setMobilePanel('detail');
   };
 
-  // Determine what to show
   const showList   = !isMobile || mobilePanel === 'list';
   const showDetail = !isMobile || mobilePanel === 'detail';
 
@@ -134,9 +176,9 @@ export function Notes() {
 
           <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
             {filtered.map(note => (
-              <div key={note.id} onClick={() => openNote(note)}
+              <div key={note._id} onClick={() => openNote(note)}
                 className="p-3 rounded-xl cursor-pointer group transition-all duration-150 relative"
-                style={{ background: selected?.id === note.id ? `rgba(${accent.rgb},0.12)` : colors.card, border: `1px solid ${selected?.id === note.id ? `rgba(${accent.rgb},0.35)` : colors.border}` }}>
+                style={{ background: selected?._id === note._id ? `rgba(${accent.rgb},0.12)` : colors.card, border: `1px solid ${selected?._id === note._id ? `rgba(${accent.rgb},0.35)` : colors.border}` }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -148,10 +190,10 @@ export function Notes() {
                     </p>
                     <div className="flex items-center gap-2 mt-2">
                       <span className="text-xs" style={{ color: note.color, fontWeight: 500 }}>{note.subject}</span>
-                      <span className="text-xs" style={{ color: colors.textMuted }}>{note.createdAt.split(' ')[0]}</span>
+                      <span className="text-xs" style={{ color: colors.textMuted }}>{formatDate(note.createdAt)}</span>
                     </div>
                   </div>
-                  <button onClick={e => { e.stopPropagation(); deleteNote(note.id); }}
+                  <button onClick={e => { e.stopPropagation(); deleteNote(note._id); }}
                     className="opacity-0 group-hover:opacity-100 p-1 rounded hover:text-red-400 transition-all flex-shrink-0"
                     style={{ color: colors.textMuted }}>
                     <Trash2 className="w-3.5 h-3.5" />
@@ -189,16 +231,35 @@ export function Notes() {
           {showForm && (
             <div className="p-4 border-b flex-shrink-0" style={{ borderColor: colors.border, background: colors.card }}>
               <h3 className="text-sm mb-3" style={{ fontWeight: 600, color: colors.text }}>Create New Note</h3>
+              
+              {/* MAGANDANG ERROR ALERT BOX */}
+              {errorMsg && (
+                <div className="mb-4 p-3 rounded-xl flex items-center gap-2 text-sm transition-all" 
+                  style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444' }}>
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span style={{ fontWeight: 500 }}>{errorMsg}</span>
+                </div>
+              )}
+
               <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <input className="px-3 py-2.5 rounded-xl text-sm outline-none w-full" style={inputStyle}
                     placeholder="Note title..."
                     value={newNote.title} onChange={e => setNewNote({ ...newNote, title: e.target.value })} />
-                  <select className="px-3 py-2.5 rounded-xl text-sm outline-none w-full" style={inputStyle}
-                    value={newNote.subject} onChange={e => setNewNote({ ...newNote, subject: e.target.value })}>
-                    {subjects.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  
+                  <div className="flex flex-col gap-2">
+                    <select className="px-3 py-2.5 rounded-xl text-sm outline-none w-full" style={inputStyle}
+                      value={newNote.subject} onChange={e => setNewNote({ ...newNote, subject: e.target.value })}>
+                      {subjects.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    {newNote.subject === 'Other...' && (
+                      <input className="px-3 py-2.5 rounded-xl text-sm outline-none w-full transition-all" style={inputStyle}
+                        placeholder="Type custom subject here..." autoFocus
+                        value={customSubject} onChange={e => setCustomSubject(e.target.value)} />
+                    )}
+                  </div>
                 </div>
+
                 <input className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={inputStyle}
                   placeholder="Tags (comma separated: calculus, formula, exam)"
                   value={newNote.tags} onChange={e => setNewNote({ ...newNote, tags: e.target.value })} />
@@ -207,11 +268,11 @@ export function Notes() {
                   placeholder="Write your notes here... (supports **bold** text)"
                   value={newNote.content} onChange={e => setNewNote({ ...newNote, content: e.target.value })} />
                 <div className="flex gap-2">
-                  <button onClick={addNote} className="px-5 py-2 rounded-xl text-white text-sm hover:opacity-90"
+                  <button onClick={addNote} disabled={isSaving} className="px-5 py-2 rounded-xl text-white text-sm hover:opacity-90 disabled:opacity-50 transition-all"
                     style={{ background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, fontWeight: 600 }}>
-                    Save Note
+                    {isSaving ? 'Saving...' : 'Save Note'}
                   </button>
-                  <button onClick={() => setShowForm(false)} className="px-5 py-2 rounded-xl text-sm"
+                  <button onClick={() => setShowForm(false)} disabled={isSaving} className="px-5 py-2 rounded-xl text-sm disabled:opacity-50 transition-all"
                     style={{ background: colors.card2, border: `1px solid ${colors.border}`, color: colors.textSub }}>
                     Cancel
                   </button>
@@ -231,9 +292,9 @@ export function Notes() {
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-xs px-2.5 py-1 rounded-lg" style={{ background: `${selected.color}20`, color: selected.color, fontWeight: 500 }}>{selected.subject}</span>
                     <div className="flex items-center gap-1.5 text-xs" style={{ color: colors.textMuted }}>
-                      <Clock className="w-3 h-3" /><span>{selected.createdAt}</span>
+                      <Clock className="w-3 h-3" /><span>{formatDate(selected.createdAt)}</span>
                     </div>
-                    {selected.tags.length > 0 && (
+                    {selected.tags && selected.tags.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <Tag className="w-3 h-3" style={{ color: colors.textMuted }} />
                         {selected.tags.map(t => (
