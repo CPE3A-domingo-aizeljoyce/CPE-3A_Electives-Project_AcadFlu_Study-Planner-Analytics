@@ -244,8 +244,9 @@ export function StudyTimer() {
   useEffect(() => {
     const next = buildModeConfig(accent.main, accentGlow, timerSettings);
     setModeConfig(next);
-    if (!running) setTimeLeft(next[mode].duration);
-  }, [timerSettings, mode, running, accent.main, accentGlow]);
+    // Only reset timeLeft if not running AND there's no active session (i.e., not paused)
+    if (!running && !activeSession) setTimeLeft(next[mode].duration);
+  }, [timerSettings, mode, running, accent.main, accentGlow, activeSession]);
 
   useEffect(() => {
     setModeConfig(prev => ({
