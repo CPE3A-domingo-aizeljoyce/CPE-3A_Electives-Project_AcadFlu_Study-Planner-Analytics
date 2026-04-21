@@ -7,6 +7,7 @@ import authRoutes          from './routes/authRoutes.js';
 import goalRoutes          from './routes/goalRoutes.js';
 import taskRoutes          from './routes/taskRoutes.js';
 import timerRoutes         from './routes/timerRoutes.js';
+import noteRoutes from './routes/notesRoutes.js';
 import achievementsRoutes  from './routes/achievementsRoutes.js';
 
 connectDB();
@@ -30,6 +31,7 @@ app.use('/api/goals',         goalRoutes);
 app.use('/api/tasks',         taskRoutes);
 app.use('/api/study-timer',   timerRoutes);
 app.use('/api/achievements',  achievementsRoutes);
+app.use('/api/notes', noteRoutes);
 
 app.get('/', (req, res) => res.send('StudyFlow API is running ✅'));
 
