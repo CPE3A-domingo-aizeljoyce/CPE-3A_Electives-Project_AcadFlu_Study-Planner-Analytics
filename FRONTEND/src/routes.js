@@ -1,5 +1,5 @@
 import React from 'react';
-import { createBrowserRouter, Navigate, Outlet } from 'react-router';
+import { createHashRouter, Navigate, Outlet } from 'react-router';
 import { Root }          from './components/Root';
 import { Layout }        from './components/Layout';
 import { Landing }       from './pages/Landing';
@@ -21,7 +21,7 @@ function ProtectedRoute() {
   return React.createElement(Outlet, null);
 }
 
-export const router = createBrowserRouter([
+export const router = createHashRouter([
   {
     Component: Root,
     children: [

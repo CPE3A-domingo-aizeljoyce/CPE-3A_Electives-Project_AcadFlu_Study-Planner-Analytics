@@ -207,7 +207,7 @@ export const verifyEmail = async (req, res) => {
     }
 
     const jwtToken = generateToken(user._id);
-    res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${jwtToken}&verified=true`);
+    res.redirect(`${process.env.FRONTEND_URL}/#/auth/callback?token=...`);
 
   } catch (err) {
     console.error('Verify email error:', err);
