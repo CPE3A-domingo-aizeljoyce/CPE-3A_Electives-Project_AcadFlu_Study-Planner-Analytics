@@ -1,20 +1,19 @@
 import React from 'react';
-import { createHashRouter, Navigate, Outlet } from 'react-router';
+import { createBrowserRouter, Navigate, Outlet } from 'react-router';
 import { Root }          from './components/Root';
 import { Layout }        from './components/Layout';
 import { Landing }       from './pages/Landing';
 import { Login }         from './pages/Login';
 import { AuthCallback }  from './pages/AuthCallback';
-import { ResetPassword } from './pages/ResetPassword';   // ← ADDED
+import { ResetPassword } from './pages/ResetPassword';
 import { Dashboard }     from './pages/Dashboard';
 import { Tasks }         from './pages/Tasks';
-import { StudyTimer }         from './pages/Timer';
+import { StudyTimer }    from './pages/Timer';
 import { Analytics }     from './pages/Analytics';
 import { Goals }         from './pages/Goals';
 import { Notes }         from './pages/Notes';
 import { Achievements }  from './pages/Achievements';
 import { Settings }      from './pages/Settings';
-import { AboutUs } from './pages/AboutUs';
 
 function ProtectedRoute() {
   const token = localStorage.getItem('token');
@@ -22,15 +21,14 @@ function ProtectedRoute() {
   return React.createElement(Outlet, null);
 }
 
-export const router = createHashRouter([
+export const router = createBrowserRouter([
   {
     Component: Root,
     children: [
       { path: '/',               Component: Landing      },
-      { path: '/about',          Component: AboutUs      },
       { path: '/login',          Component: Login        },
       { path: '/auth/callback',  Component: AuthCallback },
-      { path: '/reset-password', Component: ResetPassword },   // ← ADDED
+      { path: '/reset-password', Component: ResetPassword },
       {
         path: '/app',
         Component: ProtectedRoute,
