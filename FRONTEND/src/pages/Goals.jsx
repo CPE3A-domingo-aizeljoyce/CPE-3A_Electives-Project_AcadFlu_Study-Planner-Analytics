@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAppearance } from '../components/AppearanceProvider';
-import { Plus, Target, Trash2, X, CheckCircle, Circle, Pencil, Save } from 'lucide-react';
+import { Plus, Target, Trash2, X, CheckCircle, Circle, Pencil, Save, RotateCcw } from 'lucide-react';
 import axios from 'axios'; 
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -13,6 +13,9 @@ export function Goals() {
   const [goals, setGoals] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  // Animation State
+  const [fadingId, setFadingId] = useState(null);
   
   // Create Form State
   const [newGoal, setNewGoal] = useState({ title: '', subject: 'General', color: GOAL_COLORS[0] });
@@ -69,7 +72,6 @@ export function Goals() {
     }
   };
 
-  // --- DELETE FUNCTIONS (CUSTOM MODAL) ---
   const confirmDelete = async () => {
     if (!goalToDelete) return;
     try {
@@ -89,19 +91,28 @@ export function Goals() {
 
   const toggleGoalStatus = async (goal) => {
     const updatedStatus = goal.status === 'completed' ? 'active' : 'completed';
+    
+    // 1. I-trigger ang fade out animation
+    setFadingId(goal._id);
+
     try {
+      // 2. Maghintay ng 300ms para matapos ang fade out bago ilipat
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // 3. I-update sa backend at ilipat ang listahan
       const res = await axios.put(`${API_BASE}/api/goals/${goal._id}`, { status: updatedStatus }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       setGoals(goals.map(g => g._id === goal._id ? res.data : g));
-
       
     } catch (err) {
       console.error("Failed to update goal", err);
+    } finally {
+      // 4. Tanggalin ang animation lock
+      setFadingId(null);
     }
   };
 
-  // --- EDIT FUNCTIONS ---
   const startEditing = (goal) => {
     setEditingId(goal._id);
     const isStandard = SUBJECTS.includes(goal.subject);
@@ -140,16 +151,20 @@ export function Goals() {
     }
   };
 
-  // --- GROUPING LOGIC ---
-  const groupedGoals = goals.reduce((groups, goal) => {
+  // --- SEPARATE ACTIVE AND COMPLETED GOALS ---
+  const activeGoals = goals.filter(g => g.status !== 'completed');
+  const completedGoals = goals.filter(g => g.status === 'completed');
+
+  // --- GROUP ONLY ACTIVE GOALS ---
+  const activeGroupedGoals = activeGoals.reduce((groups, goal) => {
     const subj = goal.subject || 'General';
     if (!groups[subj]) groups[subj] = [];
     groups[subj].push(goal);
     return groups;
   }, {});
 
-  const activeCount = goals.filter(g => g.status !== 'completed').length;
-  const completedCount = goals.filter(g => g.status === 'completed').length;
+  const activeCount = activeGoals.length;
+  const completedCount = completedGoals.length;
   const inputClass = "px-4 py-2.5 rounded-xl text-sm outline-none w-full";
 
   return (
@@ -192,7 +207,7 @@ export function Goals() {
 
       {/* Create Form */}
       {showForm && (
-        <div className="rounded-2xl p-5 mb-2" style={{ background: colors.card, border: `2px dashed ${accent.main}50` }}>
+        <div className="rounded-2xl p-5 mb-2 transition-all" style={{ background: colors.card, border: `2px dashed ${accent.main}50` }}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm" style={{ fontWeight: 700, color: colors.text }}>Create New Goal</h3>
             <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-red-400"><X className="w-5 h-5"/></button>
@@ -242,23 +257,23 @@ export function Goals() {
                 ))}
               </div>
             </div>
-            <button onClick={handleCreateGoal} className="w-full md:w-auto px-6 py-2.5 rounded-xl text-white text-sm"
+            <button onClick={handleCreateGoal} className="w-full md:w-auto px-6 py-2.5 rounded-xl text-white text-sm transition-all hover:scale-105 active:scale-95"
               style={{ background: accent.main, fontWeight: 600 }}>Create Goal</button>
           </div>
         </div>
       )}
 
-      {/* Grouped Goals List */}
+      {/* --- ACTIVE GOALS --- */}
       {loading ? (
         <div className="text-center py-10" style={{ color: colors.textMuted }}>Loading goals...</div>
-      ) : goals.length === 0 ? (
+      ) : activeGoals.length === 0 ? (
         <div className="text-center py-16 flex flex-col items-center opacity-60">
           <Target className="w-12 h-12 mb-3" style={{ color: colors.textMuted }} />
-          <p className="text-sm" style={{ color: colors.textMuted }}>No goals yet. Dream big and add one!</p>
+          <p className="text-sm" style={{ color: colors.textMuted }}>No active goals. Dream big and add one!</p>
         </div>
       ) : (
         <div className="flex flex-col gap-6">
-          {Object.entries(groupedGoals).map(([subject, subjectGoals]) => (
+          {Object.entries(activeGroupedGoals).map(([subject, subjectGoals]) => (
             <div key={subject} className="flex flex-col gap-3">
               
               {/* Division/Subject Header */}
@@ -271,8 +286,8 @@ export function Goals() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {subjectGoals.map(goal => {
-                  const isCompleted = goal.status === 'completed';
                   const isEditing = editingId === goal._id;
+                  const isFading = fadingId === goal._id;
 
                   // EDIT MODE UI
                   if (isEditing) {
@@ -314,22 +329,16 @@ export function Goals() {
 
                   // NORMAL VIEW UI
                   return (
-                    <div key={goal._id} className="rounded-2xl p-4 flex gap-4 transition-all group relative"
-                      style={{ 
-                        background: colors.card, 
-                        border: `1px solid ${isCompleted ? colors.border : `${goal.color}40`}`,
-                        opacity: isCompleted ? 0.6 : 1
-                      }}>
+                    <div key={goal._id} 
+                      className={`rounded-2xl p-4 flex gap-4 transition-all duration-300 group relative ${isFading ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
+                      style={{ background: colors.card, border: `1px solid ${goal.color}40` }}>
                       
-                      <button onClick={() => toggleGoalStatus(goal)} className="shrink-0 mt-0.5">
-                        {isCompleted ? 
-                          <CheckCircle className="w-6 h-6" style={{ color: '#22c55e' }} /> : 
-                          <Circle className="w-6 h-6" style={{ color: colors.border }} />
-                        }
+                      <button onClick={() => toggleGoalStatus(goal)} className="shrink-0 mt-0.5 hover:scale-110 transition-transform">
+                        <Circle className="w-6 h-6" style={{ color: colors.border }} />
                       </button>
 
                       <div className="flex-1 min-w-0 pr-12">
-                        <h3 className="text-sm truncate mb-1.5" style={{ fontWeight: 600, color: colors.text, textDecoration: isCompleted ? 'line-through' : 'none' }}>
+                        <h3 className="text-sm truncate mb-1.5" style={{ fontWeight: 600, color: colors.text }}>
                           {goal.title}
                         </h3>
                         <div className="flex items-center gap-2">
@@ -337,7 +346,6 @@ export function Goals() {
                         </div>
                       </div>
 
-                      {/* Hover Action Buttons */}
                       <div className="absolute right-3 top-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => startEditing(goal)} className="p-1.5 rounded-md hover:bg-gray-500/10" style={{ color: colors.textMuted }}>
                           <Pencil className="w-3.5 h-3.5" />
@@ -355,7 +363,52 @@ export function Goals() {
         </div>
       )}
 
-      {/* --- BAGO: CUSTOM DELETE MODAL --- */}
+      {/* --- COMPLETED HISTORY SECTION --- */}
+      {!loading && completedGoals.length > 0 && (
+        <div className="mt-8 pt-6 transition-all duration-500" style={{ borderTop: `1px dashed ${colors.border}` }}>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="text-xs tracking-wider" style={{ fontWeight: 700, color: colors.textSub, textTransform: 'uppercase' }}>
+              History (Completed)
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {completedGoals.map(goal => {
+              const isFading = fadingId === goal._id;
+              
+              return (
+                <div key={goal._id} 
+                  className={`rounded-2xl p-4 flex gap-4 transition-all duration-300 group relative ${isFading ? 'opacity-0 scale-95' : 'opacity-60 scale-100 hover:opacity-100'}`}
+                  style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+                  
+                  {/* Button to Un-complete */}
+                  <button onClick={() => toggleGoalStatus(goal)} className="shrink-0 mt-0.5 hover:scale-110 transition-transform">
+                    <CheckCircle className="w-6 h-6" style={{ color: '#22c55e' }} />
+                  </button>
+
+                  <div className="flex-1 min-w-0 pr-12">
+                    <h3 className="text-sm truncate mb-1.5" style={{ fontWeight: 600, color: colors.text, textDecoration: 'line-through' }}>
+                      {goal.title}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ background: goal.color }} />
+                      <span className="text-xs" style={{ color: colors.textSub }}>{goal.subject}</span>
+                    </div>
+                  </div>
+
+                  <div className="absolute right-3 top-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => setGoalToDelete(goal)} className="p-1.5 rounded-md hover:bg-red-500/10 hover:text-red-400 transition-all" style={{ color: colors.textMuted }}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
       {goalToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
