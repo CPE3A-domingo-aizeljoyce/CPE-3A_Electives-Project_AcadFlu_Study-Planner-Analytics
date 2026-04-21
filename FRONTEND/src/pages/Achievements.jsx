@@ -224,7 +224,7 @@ export function Achievements() {
               const IconComp       = ICON_MAP[badge.iconKey] || Trophy;
               
 
-              const isBackendUnlocked = true; 
+              const isBackendUnlocked = badge.unlocked;
               
               const isClaimed         = claimedBadges.includes(badge.id); 
               const isReadyToClaim    = isBackendUnlocked && !isClaimed;
