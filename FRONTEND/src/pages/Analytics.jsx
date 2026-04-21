@@ -4,6 +4,7 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContai
 import { TrendingUp, Clock, Zap, BookOpen, Award } from 'lucide-react';
 import { fetchAnalyticsData } from '../api/analyticsApi';
 
+
 function CustomTooltip({ active, payload, label }) {
   const { colors } = useAppearance();
   if (!active || !payload?.length) return null;
@@ -40,11 +41,11 @@ function PieTooltip({ active, payload }) {
 }
 
 export function Analytics() {
-  const [timeframe, setTimeframe] = useState('weekly');
+  const [timeframe, setTimeframe] = useState('daily'); // Set Default to daily para mas makita ang test
   const [studyData, setStudyData] = useState([]);
   const { colors, accent } = useAppearance();
 
-  useEffect(() => {
+useEffect(() => {
     const getAnalytics = async () => {
       try {
         const data = await fetchAnalyticsData(timeframe);
@@ -60,15 +61,24 @@ export function Analytics() {
     const isDataEmpty = studyData.length === 0;
     if (isDataEmpty) return { displayTotalHours: '0.0', displayAvgDaily: '0.0', displaySubjectPie: [], displayChartData: [], displayHourlyData: [] };
 
-    const totalMinutes = studyData.reduce((sum, session) => sum + session.durationMinutes, 0);
-    const totalHours = (totalMinutes / 60).toFixed(1);
+    const formatHours = (mins) => {
+      if (!mins || mins === 0) return 0;
+      const hrs = mins / 60;
+      return hrs > 0 && hrs < 0.1 ? 0.1 : Number(hrs.toFixed(1));
+    };
+
+    const totalMinutes = studyData.reduce((sum, session) => sum + (session.durationMinutes || 0), 0);
+    const totalHours = formatHours(totalMinutes).toFixed(1);
+    
     const daysCount = timeframe === 'daily' ? 1 : timeframe === 'weekly' ? 7 : 30;
-    const avgDaily = (totalHours / daysCount).toFixed(1);
+    const avgDaily = formatHours(totalMinutes / daysCount).toFixed(1);
 
     const subjectMap = {};
     studyData.forEach(s => { subjectMap[s.subject] = (subjectMap[s.subject] || 0) + s.durationMinutes; });
     const computedSubjects = Object.keys(subjectMap).map((key, i) => ({
-      name: key, value: Number((subjectMap[key] / 60).toFixed(1)), color: ['#6366f1', '#22c55e', '#f97316', '#8b5cf6', '#06b6d4', '#fbbf24', '#ec4899'][i % 7]
+      name: key, 
+      value: formatHours(subjectMap[key]), 
+      color: ['#6366f1', '#22c55e', '#f97316', '#8b5cf6', '#06b6d4', '#fbbf24', '#ec4899'][i % 7]
     })).sort((a, b) => b.value - a.value);
 
     let chartData = [];
@@ -78,7 +88,7 @@ export function Analytics() {
         const dayName = new Date(s.date).toLocaleDateString('en-US', { weekday: 'short' });
         if (daysMap[dayName] !== undefined) daysMap[dayName] += s.durationMinutes;
       });
-      chartData = Object.keys(daysMap).map(day => ({ day, hours: Number((daysMap[day] / 60).toFixed(1)), target: 4 }));
+      chartData = Object.keys(daysMap).map(day => ({ day, hours: formatHours(daysMap[day]), target: 4 }));
     } else if (timeframe === 'monthly') {
       const weeksMap = { 'Wk 1': 0, 'Wk 2': 0, 'Wk 3': 0, 'Wk 4': 0 };
       studyData.forEach(s => {
@@ -86,34 +96,32 @@ export function Analytics() {
         const weekStr = dayOfMonth <= 7 ? 'Wk 1' : dayOfMonth <= 14 ? 'Wk 2' : dayOfMonth <= 21 ? 'Wk 3' : 'Wk 4';
         weeksMap[weekStr] += s.durationMinutes;
       });
-      chartData = Object.keys(weeksMap).map(week => ({ week, hours: Number((weeksMap[week] / 60).toFixed(1)) }));
+      chartData = Object.keys(weeksMap).map(week => ({ week, hours: formatHours(weeksMap[week]) }));
     } else {
-      const baseHours = ['6AM', '8AM', '10AM', '12PM', '2PM', '4PM', '6PM', '8PM', '10PM'];
+      const allLabels = ['12AM', '2AM', '4AM', '6AM', '8AM', '10AM', '12PM', '2PM', '4PM', '6PM', '8PM', '10PM'];
       const hoursMap = {};
-      baseHours.forEach(h => hoursMap[h] = 0);
+      allLabels.forEach(h => hoursMap[h] = 0);
       studyData.forEach(s => {
         const hour = new Date(s.date).getHours();
         const blockHour = Math.floor(hour / 2) * 2;
         let label = `${blockHour % 12 || 12}${blockHour >= 12 ? 'PM' : 'AM'}`;
         if (blockHour === 0) label = '12AM';
-        hoursMap[label] = (hoursMap[label] || 0) + s.durationMinutes;
+        if (hoursMap[label] !== undefined) hoursMap[label] += s.durationMinutes;
       });
-      const allLabels = ['12AM', '2AM', '4AM', '6AM', '8AM', '10AM', '12PM', '2PM', '4PM', '6PM', '8PM', '10PM'];
-      chartData = allLabels.filter(label => hoursMap[label] !== undefined).map(day => ({ day, hours: Number((hoursMap[day] / 60).toFixed(1)), target: 2 }));
+      chartData = allLabels.map(day => ({ day, hours: formatHours(hoursMap[day]), target: 2 }));
     }
 
     const productivityMap = {};
-    const baseHoursProd = ['6AM', '8AM', '10AM', '12PM', '2PM', '4PM', '6PM', '8PM', '10PM'];
-    baseHoursProd.forEach(h => productivityMap[h] = 0);
+    const allLabelsProd = ['12AM', '2AM', '4AM', '6AM', '8AM', '10AM', '12PM', '2PM', '4PM', '6PM', '8PM', '10PM'];
+    allLabelsProd.forEach(h => productivityMap[h] = 0);
     studyData.forEach(s => {
        const hour = new Date(s.date).getHours();
        const blockHour = Math.floor(hour / 2) * 2;
        let label = `${blockHour % 12 || 12}${blockHour >= 12 ? 'PM' : 'AM'}`;
        if (blockHour === 0) label = '12AM';
-       productivityMap[label] = (productivityMap[label] || 0) + 1; 
+       if (productivityMap[label] !== undefined) productivityMap[label] += 1; 
     });
-    const allLabelsProd = ['12AM', '2AM', '4AM', '6AM', '8AM', '10AM', '12PM', '2PM', '4PM', '6PM', '8PM', '10PM'];
-    const computedHourlyData = allLabelsProd.filter(label => productivityMap[label] !== undefined).map(hour => ({ hour, sessions: productivityMap[hour] }));
+    const computedHourlyData = allLabelsProd.map(hour => ({ hour, sessions: productivityMap[hour] }));
 
     return { displayTotalHours: totalHours, displayAvgDaily: avgDaily, displaySubjectPie: computedSubjects, displayChartData: chartData, displayHourlyData: computedHourlyData };
   }, [studyData, timeframe]);
@@ -128,12 +136,15 @@ export function Analytics() {
           <h1 className="text-2xl" style={{ fontWeight: 700, letterSpacing: '-0.4px', color: colors.text }}>Analytics</h1>
           <p className="text-sm mt-0.5" style={{ color: colors.textSub }}>Detailed insights into your study habits</p>
         </div>
-        <div className="flex gap-1 p-1 rounded-xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
-          {['daily', 'weekly', 'monthly'].map(t => (
-            
-            <button key={t} onClick={() => setTimeframe(t)} className="px-4 py-2 rounded-lg text-sm transition-all capitalize"
-              style={timeframe === t ? { background: accent.main, color: '#fff', fontWeight: 600 } : { color: colors.textMuted }}>{t}</button>
-          ))}
+        <div className="flex items-center gap-2">
+          
+
+          <div className="flex gap-1 p-1 rounded-xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+            {['daily', 'weekly', 'monthly'].map(t => (
+              <button key={t} onClick={() => setTimeframe(t)} className="px-4 py-2 rounded-lg text-sm transition-all capitalize"
+                style={timeframe === t ? { background: accent.main, color: '#fff', fontWeight: 600 } : { color: colors.textMuted }}>{t}</button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -217,7 +228,7 @@ export function Analytics() {
         </div>
       </div>
       
-      {/* CHARTS ROW 2 (Peak Hours & Subject Progress) */}
+      {/* CHARTS ROW 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="p-4 rounded-2xl min-w-0 overflow-hidden" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
           <div className="mb-5">
@@ -233,7 +244,7 @@ export function Analytics() {
                 <Tooltip content={<HeatmapTooltip />} cursor={{ fill: `rgba(${accent.rgb},0.06)` }} />
                 <Bar dataKey="sessions" radius={[4,4,0,0]}>
                   {displayHourlyData.map((entry, index) => (
-                    <Cell key={`hourly-cell-${index}`} fill={entry.sessions >= 6 ? accent.main : entry.sessions >= 4 ? accent.light : colors.border} />
+                    <Cell key={`hourly-cell-${index}`} fill={entry.sessions >= 3 ? accent.main : entry.sessions >= 1 ? accent.light : colors.border} />
                   ))}
                 </Bar>
               </BarChart>
