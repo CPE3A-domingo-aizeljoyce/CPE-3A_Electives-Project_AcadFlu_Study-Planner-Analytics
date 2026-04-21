@@ -68,30 +68,16 @@ function Field({ label, children }) {
 }
 
 function AddTaskForm({ defaultDate, onAdd, onClose }) {
-  const [form, setForm]               = useState({ title: '', subject: 'Mathematics', date: defaultDate, startTime: '09:00', endTime: '10:00', priority: 'medium', goal: '' });
+
+  const [form, setForm]               = useState({ title: '', subject: 'Mathematics', date: defaultDate, startTime: '09:00', endTime: '10:00', priority: 'medium' });
   const [error, setError]             = useState('');
   const [customSubject, setCustomSubject] = useState('');
-  const [goals, setGoals]             = useState([]);
   const titleRef                      = useRef(null);
   const { colors, accent }            = useAppearance();
 
   useEffect(() => { 
     titleRef.current?.focus(); 
-    // Fetch available goals
-    fetchGoals();
   }, []);
-
-  const fetchGoals = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/goals', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      const data = await response.json();
-      setGoals(data.data || data || []);
-    } catch (err) {
-      console.error('Failed to fetch goals:', err);
-    }
-  };
 
   const submit = () => {
     if (!form.title.trim())             { setError('Please enter a task title.');           return; }
@@ -147,14 +133,6 @@ function AddTaskForm({ defaultDate, onAdd, onClose }) {
               </select>
             </Field>
           </div>
-          <Field label="Link to Goal (Optional)">
-            <select className={cls} style={inputStyle} value={form.goal} onChange={e => setForm(f => ({ ...f, goal: e.target.value }))}>
-              <option value="">No goal</option>
-              {goals.length > 0 && goals.map(g => (
-                <option key={g._id} value={g._id}>{g.title}</option>
-              ))}
-            </select>
-          </Field>
           <Field label="Date">
             <input type="date" className={cls} style={inputStyle} value={form.date} min={TODAY}
               onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
@@ -672,13 +650,12 @@ export function Tasks() {
     setShowForm(true);
   };
 
-  // FIXED: sprintTasks filters by sprint only (no search/subject/priority)
-  // Used for header count and Overall Progress — consistent with sprint selection
+
   const sprintTasks = selectedSprint === null
     ? tasks
     : tasks.filter(t => getTaskSprintNum(t.date) === selectedSprint);
 
-  // filtered = sprintTasks + search/subject/priority — used for list and kanban display
+
   const filtered = sprintTasks.filter(t => {
     const q = search.toLowerCase();
     return (t.title.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q))
@@ -686,8 +663,6 @@ export function Tasks() {
       && (filterPriority === 'All' || t.priority === filterPriority);
   });
 
-  // FIXED: was using tasks.length (ALL tasks) — now uses sprintTasks (sprint-filtered)
-  // Prevents mismatch between header count and sprint view stats
   const completed = sprintTasks.filter(t => t.done).length;
   const total     = sprintTasks.length;
   const pct       = total > 0 ? Math.round((completed / total) * 100) : 0;
@@ -826,4 +801,4 @@ export function Tasks() {
       )}
     </div>
   );
-} 
+}
