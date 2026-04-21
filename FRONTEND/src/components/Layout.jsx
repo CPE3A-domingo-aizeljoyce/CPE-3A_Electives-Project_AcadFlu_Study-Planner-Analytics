@@ -8,6 +8,8 @@ import {
 import { useAppearance } from './AppearanceProvider';
 import { logoutUser } from '../api/authApi';
 
+import { fetchAchievements } from '../api/achievementsApi';
+
 // ─── Reactive mobile-width hook ───────────────────────────────────────────────
 function useIsMobile(breakpoint = 640) {
   const [isMobile, setIsMobile] = useState(
@@ -20,10 +22,6 @@ function useIsMobile(breakpoint = 640) {
   }, [breakpoint]);
   return isMobile;
 }
-
-// ─── Hardcoded demo data ──────────────────────────────────────────────────────
-const DEMO_XP     = 2340;
-const DEMO_STREAK = 12;
 
 function getLevelInfo(xp) {
   const LEVEL_NAMES = [
@@ -70,7 +68,7 @@ const getProfileInitials = (name) => {
 };
 
 // ─── Profile Dropdown ─────────────────────────────────────────────────────────
-function ProfileDropdown({ colors, accent, lvl, profile, profileInitials, onClose }) {
+function ProfileDropdown({ colors, accent, lvl, realXP, profile, profileInitials, onClose }) {
   const navigate = useNavigate();
   const panelRef = useRef(null);
   const isMobile = useIsMobile(640);
@@ -114,12 +112,12 @@ function ProfileDropdown({ colors, accent, lvl, profile, profileInitials, onClos
         <div className="rounded-xl p-2.5" style={{ background: colors.card2 ?? colors.bg }}>
           <div className="flex justify-between mb-1.5">
             <span className="text-xs" style={{ color: colors.textMuted }}>Lv {lvl.level} · {lvl.name}</span>
-            <span className="text-xs" style={{ fontWeight: 600, color: accent.main }}>{DEMO_XP.toLocaleString()} XP</span>
+            <span className="text-xs" style={{ fontWeight: 600, color: accent.main }}>{realXP.toLocaleString()} XP</span>
           </div>
           <div className="h-1.5 rounded-full" style={{ background: colors.border }}>
             <div className="h-full rounded-full" style={{ width: `${lvl.progress}%`, background: `linear-gradient(90deg, ${accent.main}, ${accent.light})` }} />
           </div>
-          <p className="text-xs mt-1" style={{ color: colors.textMuted }}>{(lvl.nextXP - DEMO_XP).toLocaleString()} XP to Level {lvl.level + 1}</p>
+          <p className="text-xs mt-1" style={{ color: colors.textMuted }}>{(lvl.nextXP - realXP).toLocaleString()} XP to Level {lvl.level + 1}</p>
         </div>
       </div>
       <div className="p-2">
@@ -152,7 +150,7 @@ function ProfileDropdown({ colors, accent, lvl, profile, profileInitials, onClos
 }
 
 // ─── Sidebar Content ──────────────────────────────────────────────────────────
-function SidebarContent({ collapsed, isMobile, colors, accent, lvl, showStreak, showXPBar, compactMode, animations, showProfile, setShowProfile, onClose, profile, profileInitials }) {
+function SidebarContent({ collapsed, isMobile, colors, accent, lvl, realXP, realStreak, showStreak, showXPBar, compactMode, animations, showProfile, setShowProfile, onClose, profile, profileInitials }) {
   const navPy = compactMode ? '0.4rem' : '0.6rem';
   const dur   = animations ? '280ms' : '0ms';
 
@@ -188,7 +186,7 @@ function SidebarContent({ collapsed, isMobile, colors, accent, lvl, showStreak, 
               style={{ padding: compactMode ? '8px 12px' : '10px 12px', background: 'linear-gradient(135deg, rgba(249,115,22,.15), rgba(249,115,22,.06))', border: '1px solid rgba(249,115,22,.25)' }}>
               <Flame className="w-4 h-4 flex-shrink-0" style={{ color: '#fb923c' }} />
               <div>
-                <p className="text-xs" style={{ fontWeight: 600, color: '#fb923c' }}>{DEMO_STREAK} Day Streak</p>
+                <p className="text-xs" style={{ fontWeight: 600, color: '#fb923c' }}>{realStreak} {realStreak === 1 ? 'Day' : 'Days'} Streak</p>
                 {!compactMode && <p className="text-xs" style={{ color: colors.textSub }}>Keep it going!</p>}
               </div>
             </div>
@@ -238,7 +236,7 @@ function SidebarContent({ collapsed, isMobile, colors, accent, lvl, showStreak, 
               <Zap className="w-3 h-3" style={{ color: accent.main }} />
               <span className="text-xs" style={{ fontWeight: 600, color: colors.textSub }}>Lv {lvl.level} {lvl.name}</span>
             </div>
-            <span className="text-xs" style={{ color: colors.textMuted }}>{DEMO_XP.toLocaleString()} / {lvl.nextXP.toLocaleString()}</span>
+            <span className="text-xs" style={{ color: colors.textMuted }}>{realXP.toLocaleString()} / {lvl.nextXP.toLocaleString()}</span>
           </div>
           <div className="h-1.5 rounded-full" style={{ background: colors.border }}>
             <div className="h-full rounded-full" style={{
@@ -326,9 +324,28 @@ export function Layout() {
   const location = useLocation();
   const { accent, colors, compactMode, animations, showXPBar, showStreak } = useAppearance();
 
-  const lvl     = getLevelInfo(DEMO_XP);
+  
+  const [realXP, setRealXP] = useState(0);
+  const [realStreak, setRealStreak] = useState(0);
+
+  const lvl     = getLevelInfo(realXP);
   const sbWidth = collapsed ? 72 : 240;
   const dur     = animations ? '280ms' : '0ms';
+
+  useEffect(() => {
+    const loadRealStats = async () => {
+      try {
+        const data = await fetchAchievements();
+        if (data && data.stats) {
+          setRealXP(data.stats.totalXP || 0);
+          setRealStreak(data.stats.streak || 0);
+        }
+      } catch (error) {
+        console.error('Failed to load real stats for sidebar:', error);
+      }
+    };
+    loadRealStats();
+  }, [location.pathname]); // Re-fetch every time user changes tabs
 
   useEffect(() => {
     document.documentElement.style.setProperty('--profile-left', `${sbWidth + 8}px`);
@@ -372,7 +389,7 @@ export function Layout() {
   }, []);
 
   const sidebarProps = {
-    colors, accent, lvl, showStreak, showXPBar, compactMode, animations,
+    colors, accent, lvl, realXP, realStreak, showStreak, showXPBar, compactMode, animations,
     showProfile, setShowProfile,
     profile, profileInitials,
   };
@@ -387,6 +404,7 @@ export function Layout() {
           colors={colors}
           accent={accent}
           lvl={lvl}
+          realXP={realXP}
           profile={profile}
           profileInitials={profileInitials}
           onClose={() => setShowProfile(false)}

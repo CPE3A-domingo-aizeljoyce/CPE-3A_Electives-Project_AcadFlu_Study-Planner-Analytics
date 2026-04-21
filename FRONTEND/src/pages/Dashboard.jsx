@@ -1,12 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAppearance } from '../components/AppearanceProvider';
 import { useTasks, TODAY } from '../components/TaskContext';
-import { Sun, Activity, Flame, Zap, Brain, Star, CheckSquare, Clock, TrendingUp, ChevronRight } from 'lucide-react';
+import { fetchAchievements } from '../api/achievementsApi';
+import { fetchAnalyticsData } from '../api/analyticsApi';
+import { Flame, Zap, Brain, Star, CheckSquare, Clock, TrendingUp, ChevronRight, Award } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar } from 'recharts';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 function getLevelInfo(xp) {
-  const names = ['Novice','Apprentice','Student','Learner','Scholar','Adept','Expert','Sage','Master','Champion'];
+  const names = [
+    'Novice','Apprentice','Student','Learner','Scholar',
+    'Adept','Practitioner','Expert','Sage','Master',
+    'Scholar','Expert','Grand Sage','Grand Master','Champion',
+    'Elite','Legend','Supreme','Mythic','Legendary',
+  ];
   const level    = Math.max(1, Math.floor(xp / 200) + 1);
   const levelXP  = (level - 1) * 200;
   const nextXP   = level * 200;
@@ -15,25 +22,19 @@ function getLevelInfo(xp) {
   return { level, name, xp, levelXP, nextXP, progress };
 }
 
-// ─── Dummy data ───────────────────────────────────────────────────────────────
-const DEMO_XP     = 2340;
-const DEMO_STREAK = 12;
-
 const SUBJECT_COLORS = {
   Mathematics: '#6366f1', Physics: '#22c55e', Chemistry: '#f97316',
-  Biology: '#8b5cf6', English: '#06b6d4', History: '#fbbf24',
+  Biology: '#8b5cf6', English: '#06b6d4', History: '#fbbf24', General: '#ec4899'
 };
 
-const recentBadges = [
-  { name: 'Early Bird',   icon: <Sun      className="w-4 h-4" style={{ color: '#fbbf24' }} />, desc: 'Studied before 8 AM', color: 'rgba(251,191,36,0.15)', border: 'rgba(251,191,36,0.3)', iconBg: 'rgba(251,191,36,0.2)' },
-  { name: 'Week Warrior', icon: <Zap      className="w-4 h-4" style={{ color: '#818cf8' }} />, desc: '7-day streak',         color: 'rgba(99,102,241,0.15)', border: 'rgba(99,102,241,0.3)', iconBg: 'rgba(99,102,241,0.2)' },
-  { name: 'Marathon',     icon: <Activity className="w-4 h-4" style={{ color: '#4ade80' }} />, desc: '4+ hours in a day',   color: 'rgba(34,197,94,0.15)',  border: 'rgba(34,197,94,0.3)',  iconBg: 'rgba(34,197,94,0.2)'  },
-];
-
-const fallbackSubjectData = [
-  { subject: 'Math', hours: 12.5 }, { subject: 'Physics', hours: 8.3 },
-  { subject: 'Chem',  hours: 6.7  }, { subject: 'Biology', hours: 9.1 }, { subject: 'Eng', hours: 4.2 },
-];
+const getBadgeStyle = (index) => {
+  const palette = [
+    { bg: 'rgba(251,191,36,0.15)', border: 'rgba(251,191,36,0.3)', iconBg: 'rgba(251,191,36,0.2)', iconCol: '#fbbf24' },
+    { bg: 'rgba(99,102,241,0.15)', border: 'rgba(99,102,241,0.3)', iconBg: 'rgba(99,102,241,0.2)', iconCol: '#818cf8' },
+    { bg: 'rgba(34,197,94,0.15)',  border: 'rgba(34,197,94,0.3)',  iconBg: 'rgba(34,197,94,0.2)',  iconCol: '#4ade80' },
+  ];
+  return palette[index % palette.length];
+};
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 function CustomTooltip({ active, payload, label }) {
@@ -66,42 +67,140 @@ function StatCard({ icon, label, value, sub, iconBg, colors }) {
 // ─── Dashboard page ───────────────────────────────────────────────────────────
 export function Dashboard() {
   const { tasks, toggle } = useTasks();
-  const [chartPeriod, setChartPeriod] = useState('W');
   const { accent, colors, showStreak, showXPBar, compactMode } = useAppearance();
 
-  const lvl = getLevelInfo(DEMO_XP);
+  // 🌟 REAL DATA STATES
+  const [realXP, setRealXP] = useState(0);
+  const [realStreak, setRealStreak] = useState(0);
+  const [recentBadges, setRecentBadges] = useState([]);
+  
+  const [chartPeriod, setChartPeriod] = useState('weekly');
+  const [chartSessions, setChartSessions] = useState([]);
+  const [dailySessions, setDailySessions] = useState([]);
+  const [weeklySessions, setWeeklySessions] = useState([]);
 
-  const todayTasks = tasks
-    .filter(t => t.date === TODAY)
-    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  // 1. Fetch Static Data on Mount (Achievements, Daily Stats, Weekly Stats)
+  useEffect(() => {
+    const initData = async () => {
+      try {
+        // Fetch XP & Badges
+        const achRes = await fetchAchievements();
+        if (achRes && achRes.stats) {
+          setRealXP(achRes.stats.totalXP || 0);
+          setRealStreak(achRes.stats.streak || 0);
+        }
+        if (achRes && achRes.achievements) {
+          const unlocked = achRes.achievements
+            .filter(a => a.unlocked)
+            .sort((a,b) => new Date(b.unlockedAt) - new Date(a.unlockedAt));
+          setRecentBadges(unlocked.slice(0, 3));
+        }
 
-  const allCompleted      = tasks.filter(t => t.done).length;
-  const allTotal          = tasks.length;
+        // Fetch Today's Data
+        const dData = await fetchAnalyticsData('daily');
+        setDailySessions(dData || []);
+
+        // Fetch This Week's Data
+        const wData = await fetchAnalyticsData('weekly');
+        setWeeklySessions(wData || []);
+      } catch (e) {
+        console.error('Error loading dashboard data:', e);
+      }
+    };
+    initData();
+  }, []);
+
+  // 2. Fetch Chart Data Dynamically when period changes
+  useEffect(() => {
+    const loadChart = async () => {
+      try {
+        const data = await fetchAnalyticsData(chartPeriod);
+        setChartSessions(data || []);
+      } catch (e) {
+        console.error('Error loading chart data:', e);
+      }
+    };
+    loadChart();
+  }, [chartPeriod]);
+
+  // ─── COMPUTATIONS ───
+  const lvl = getLevelInfo(realXP);
+
+  // Tasks Computations
+  const todayTasks = tasks.filter(t => t.date === TODAY).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const allCompleted = tasks.filter(t => t.done).length;
+  const allTotal = tasks.length;
   const productivityScore = allTotal === 0 ? 0 : Math.round((allCompleted / allTotal) * 100);
+  const todayDone = todayTasks.filter(t => t.done).length;
+  const todayTotal = todayTasks.length;
 
-  const todayDone    = todayTasks.filter(t => t.done).length;
-  const todayTotal   = todayTasks.length;
+  // Daily Quick Stats
+  const todayMins = dailySessions.reduce((sum, s) => sum + s.durationMinutes, 0);
+  const todayHrs = Math.floor(todayMins / 60);
+  const todayRemMins = todayMins % 60;
+  const todayDisplay = todayHrs > 0 ? `${todayHrs}h ${todayRemMins}m` : `${todayRemMins}m`;
 
-  const weeklyData = [
-    { day: 'Mon', hours: 3.5 }, { day: 'Tue', hours: 4.2 },
-    { day: 'Wed', hours: 2.8 }, { day: 'Thu', hours: 5.1 },
-    { day: 'Fri', hours: 3.9 }, { day: 'Sat', hours: 6.2 }, { day: 'Sun', hours: 1.5 },
-  ];
+  // Weekly Quick Stats
+  const weekMins = weeklySessions.reduce((sum, s) => sum + s.durationMinutes, 0);
+  const weekHrs = (weekMins / 60).toFixed(1);
+  const weekAvg = ((weekMins / 60) / 7).toFixed(1);
 
-  const monthlyData = [
-    { day: '4w ago', hours: 18.4 }, { day: '3w ago', hours: 22.1 },
-    { day: '2w ago', hours: 25.7 }, { day: 'This wk', hours: weeklyData.reduce((s, d) => s + d.hours, 0) },
-  ];
+  // Dynamic Chart Formatting
+  const processedChartData = useMemo(() => {
+    if (!chartSessions || chartSessions.length === 0) return [];
+    let data = [];
 
-  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const yearlyData = [52,48,61,55,70,65,80,74,88,79,92,97].map((hours, i) => ({
-    day: monthNames[i], hours,
-  }));
+    const formatHours = (mins) => {
+      if (!mins) return 0;
+      const hrs = mins / 60;
+      return hrs > 0 && hrs < 0.1 ? 0.1 : Number(hrs.toFixed(1));
+    };
 
-  const chartData    = chartPeriod === 'W' ? weeklyData : chartPeriod === 'M' ? monthlyData : yearlyData;
-  const periodTotal  = chartData.reduce((sum, d) => sum + d.hours, 0).toFixed(1);
-  const periodLabel  = chartPeriod === 'W' ? 'this week' : chartPeriod === 'M' ? 'this month' : 'this year';
-  const weeklyTotal  = weeklyData.reduce((sum, d) => sum + d.hours, 0).toFixed(1);
+    if (chartPeriod === 'weekly') {
+      const daysMap = { 'Mon': 0, 'Tue': 0, 'Wed': 0, 'Thu': 0, 'Fri': 0, 'Sat': 0, 'Sun': 0 };
+      chartSessions.forEach(s => {
+        const dayName = new Date(s.date).toLocaleDateString('en-US', { weekday: 'short' });
+        if (daysMap[dayName] !== undefined) daysMap[dayName] += s.durationMinutes;
+      });
+      data = Object.keys(daysMap).map(day => ({ day, hours: formatHours(daysMap[day]) }));
+    } else if (chartPeriod === 'monthly') {
+      const weeksMap = { 'Wk 1': 0, 'Wk 2': 0, 'Wk 3': 0, 'Wk 4': 0 };
+      chartSessions.forEach(s => {
+        const dayOfMonth = new Date(s.date).getDate();
+        const weekStr = dayOfMonth <= 7 ? 'Wk 1' : dayOfMonth <= 14 ? 'Wk 2' : dayOfMonth <= 21 ? 'Wk 3' : 'Wk 4';
+        weeksMap[weekStr] += s.durationMinutes;
+      });
+      data = Object.keys(weeksMap).map(day => ({ day, hours: formatHours(weeksMap[day]) }));
+    } else if (chartPeriod === 'daily') {
+      const allLabels = ['12AM', '2AM', '4AM', '6AM', '8AM', '10AM', '12PM', '2PM', '4PM', '6PM', '8PM', '10PM'];
+      const hoursMap = {};
+      allLabels.forEach(h => hoursMap[h] = 0);
+      chartSessions.forEach(s => {
+        const hour = new Date(s.date).getHours();
+        const blockHour = Math.floor(hour / 2) * 2;
+        let label = `${blockHour % 12 || 12}${blockHour >= 12 ? 'PM' : 'AM'}`;
+        if (blockHour === 0) label = '12AM';
+        if (hoursMap[label] !== undefined) hoursMap[label] += s.durationMinutes;
+      });
+      data = allLabels.map(day => ({ day, hours: formatHours(hoursMap[day]) }));
+    }
+    return data;
+  }, [chartSessions, chartPeriod]);
+
+  // Subject Breakdown Formatting
+  const subjectData = useMemo(() => {
+    const subjectMap = {};
+    chartSessions.forEach(s => {
+       const subj = s.subject || 'General';
+       subjectMap[subj] = (subjectMap[subj] || 0) + s.durationMinutes;
+    });
+    return Object.keys(subjectMap).map(key => ({
+       subject: key.length > 6 ? key.substring(0,6)+'..' : key, // Truncate long names for UI fitting
+       hours: Number((subjectMap[key] / 60).toFixed(1))
+    })).sort((a,b) => b.hours - a.hours).slice(0, 5); // Display top 5 only
+  }, [chartSessions]);
+
+  const periodTotal = processedChartData.reduce((sum, d) => sum + (d.hours || 0), 0).toFixed(1);
 
   return (
     <div className="min-h-full" style={{ background: colors.bg, padding: compactMode ? '0.75rem' : '1rem' }}>
@@ -110,21 +209,21 @@ export function Dashboard() {
       <div style={{ marginBottom: compactMode ? '0.75rem' : '1rem' }}>
         <div className="flex items-center justify-between mb-1">
           <h1 style={{ fontWeight: 700, fontSize: 'clamp(1rem, 4vw, 1.25rem)', letterSpacing: '-0.4px', lineHeight: 1.2, color: colors.text }}>
-            Good morning, Moran
+            Welcome back to StudyFlow
           </h1>
           <div className="hidden sm:flex items-center gap-3">
             {showStreak && (
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm"
                 style={{ background: `rgba(${accent.rgb},0.15)`, border: `1px solid rgba(${accent.rgb},0.3)`, color: accent.light }}>
                 <Flame className="w-4 h-4 text-orange-400" />
-                <span style={{ fontWeight: 600 }}>{DEMO_STREAK} Day Streak</span>
+<span style={{ fontWeight: 600 }}>{realStreak} {realStreak === 1 ? 'Day' : 'Days'} Streak</span>
               </div>
             )}
             {showXPBar && (
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm"
                 style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.25)', color: '#4ade80' }}>
                 <Zap className="w-4 h-4" />
-                <span style={{ fontWeight: 600 }}>{DEMO_XP.toLocaleString()} XP</span>
+                <span style={{ fontWeight: 600 }}>{realXP.toLocaleString()} XP</span>
               </div>
             )}
           </div>
@@ -137,53 +236,50 @@ export function Dashboard() {
       
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" style={{ marginBottom: compactMode ? '0.75rem' : '1rem' }}>
-        <StatCard colors={colors} icon={<Clock       className="w-4 h-4 text-indigo-400" />} label="Today's Study Time"  value="2h 45m"                        sub="3 sessions today"                iconBg="rgba(99,102,241,0.15)"  />
-        <StatCard
-          colors={colors}
-          icon={<TrendingUp className="w-4 h-4 text-green-400" />}
-          label="Productivity Score"
-          value={`${productivityScore}%`}
-          sub={`${allCompleted} of ${allTotal} tasks done`}
-          iconBg="rgba(34,197,94,0.12)"
-        />
-        <StatCard colors={colors} icon={<Flame       className="w-4 h-4 text-orange-400" />} label="Current Streak"      value={`${DEMO_STREAK} Days`}         sub="Personal best: 18 days"          iconBg="rgba(249,115,22,0.12)"  />
-        <StatCard colors={colors} icon={<CheckSquare className="w-4 h-4 text-purple-400" />} label="Tasks Completed" value={`${allCompleted}/${allTotal}`} sub={`${allTotal - allCompleted} remaining overall`} iconBg="rgba(139,92,246,0.12)" />
+        <StatCard colors={colors} icon={<Clock       className="w-4 h-4 text-indigo-400" />} label="Today's Study Time"  value={todayDisplay}                  sub={`${dailySessions.length} sessions today`}        iconBg="rgba(99,102,241,0.15)"  />
+        <StatCard colors={colors} icon={<TrendingUp  className="w-4 h-4 text-green-400" />}  label="Productivity Score"  value={`${productivityScore}%`}       sub={`${allCompleted} of ${allTotal} tasks done`}     iconBg="rgba(34,197,94,0.12)" />
+        <StatCard colors={colors} icon={<Flame className="w-4 h-4 text-orange-400" />} label="Current Streak" value={`${realStreak} ${realStreak === 1 ? 'Day' : 'Days'}`} sub="Keep the fire burning!" iconBg="rgba(249,115,22,0.12)" />
+        <StatCard colors={colors} icon={<CheckSquare className="w-4 h-4 text-purple-400" />} label="Tasks Completed"     value={`${allCompleted}/${allTotal}`} sub={`${allTotal - allCompleted} remaining overall`}  iconBg="rgba(139,92,246,0.12)" />
       </div>
 
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* Study Hours Chart with W/M/Y toggle */}
+        {/* Study Hours Chart */}
         <div className="lg:col-span-2 p-4 rounded-2xl min-w-0 overflow-hidden" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="text-base" style={{ fontWeight: 600, color: colors.text }}>
-                {chartPeriod === 'W' ? 'Weekly' : chartPeriod === 'M' ? 'Monthly' : 'Yearly'} Study Hours
+              <h3 className="text-base capitalize" style={{ fontWeight: 600, color: colors.text }}>
+                {chartPeriod} Study Hours
               </h3>
-              <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>Total {periodLabel}: {periodTotal} hrs</p>
+              <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>Total logs: {periodTotal} hrs</p>
             </div>
             <div className="flex gap-1 p-1 rounded-xl" style={{ background: colors.card2 ?? colors.bg, border: `1px solid ${colors.border}` }}>
-              {['W', 'M', 'Y'].map(t => (
+              {['daily', 'weekly', 'monthly'].map(t => (
                 <button key={t} onClick={() => setChartPeriod(t)}
-                  className="w-8 h-7 rounded-lg text-xs transition-all duration-200"
+                  className="px-3 py-1.5 rounded-lg text-xs transition-all duration-200 capitalize"
                   style={chartPeriod === t
                     ? { background: accent.main, color: '#fff', fontWeight: 700, boxShadow: `0 2px 8px rgba(${accent.rgb},0.4)`, cursor: 'pointer' }
                     : { color: colors.textSub, fontWeight: 500, background: 'transparent', cursor: 'pointer' }}>
-                  {t}
+                  {t === 'daily' ? 'Day' : t === 'weekly' ? 'Week' : 'Month'}
                 </button>
               ))}
             </div>
           </div>
           <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-              <CartesianGrid stroke={colors.chartGrid} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="day" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<CustomTooltip />} cursor={{ stroke: accent.main, strokeWidth: 1, strokeDasharray: '4 4' }} />
-              <Area type="monotone" dataKey="hours" stroke={accent.main} strokeWidth={2.5}
-                fill={accent.main} fillOpacity={0.12}
-                dot={{ fill: accent.main, r: 4, strokeWidth: 0 }} activeDot={{ r: 6, fill: accent.light, strokeWidth: 0 }} />
-            </AreaChart>
+            {processedChartData.length > 0 ? (
+              <AreaChart data={processedChartData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+                <CartesianGrid stroke={colors.chartGrid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="day" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} cursor={{ stroke: accent.main, strokeWidth: 1, strokeDasharray: '4 4' }} />
+                <Area type="monotone" dataKey="hours" stroke={accent.main} strokeWidth={2.5}
+                  fill={accent.main} fillOpacity={0.12}
+                  dot={{ fill: accent.main, r: 4, strokeWidth: 0 }} activeDot={{ r: 6, fill: accent.light, strokeWidth: 0 }} />
+              </AreaChart>
+            ) : (
+              <div className="flex items-center justify-center h-full text-xs" style={{ color: colors.textMuted }}>No data for this period</div>
+            )}
           </ResponsiveContainer>
         </div>
 
@@ -191,13 +287,17 @@ export function Dashboard() {
         <div className="p-4 rounded-2xl min-w-0 overflow-hidden" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
           <h3 className="text-base mb-4" style={{ fontWeight: 600, color: colors.text }}>Subject Breakdown</h3>
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={fallbackSubjectData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-              <CartesianGrid stroke={colors.chartGrid} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="subject" tick={{ fill: colors.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: colors.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: `rgba(${accent.rgb},0.06)` }} />
-              <Bar dataKey="hours" fill={accent.main} radius={[5, 5, 0, 0]} />
-            </BarChart>
+            {subjectData.length > 0 ? (
+              <BarChart data={subjectData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+                <CartesianGrid stroke={colors.chartGrid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="subject" tick={{ fill: colors.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: colors.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: `rgba(${accent.rgb},0.06)` }} />
+                <Bar dataKey="hours" fill={accent.main} radius={[5, 5, 0, 0]} />
+              </BarChart>
+            ) : (
+              <div className="flex items-center justify-center h-full text-xs" style={{ color: colors.textMuted }}>No subject data</div>
+            )}
           </ResponsiveContainer>
         </div>
 
@@ -264,15 +364,15 @@ export function Dashboard() {
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-sm" style={{ fontWeight: 700, color: accent.main }}>{DEMO_XP.toLocaleString()} XP</div>
+                <div className="text-sm" style={{ fontWeight: 700, color: accent.main }}>{realXP.toLocaleString()} XP</div>
                 <div className="text-xs" style={{ color: colors.textMuted }}>/ {lvl.nextXP.toLocaleString()}</div>
               </div>
             </div>
             <div className="h-2 rounded-full" style={{ background: colors.border }}>
-              <div className="h-full rounded-full" style={{ width: `${lvl.progress}%`, background: `linear-gradient(90deg, ${accent.main}, ${accent.light})`, boxShadow: `0 0 12px rgba(${accent.rgb},0.6)` }} />
+              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${lvl.progress}%`, background: `linear-gradient(90deg, ${accent.main}, ${accent.light})`, boxShadow: `0 0 12px rgba(${accent.rgb},0.6)` }} />
             </div>
             <div className="flex justify-between mt-1.5">
-              <span className="text-xs" style={{ color: colors.textMuted }}>{lvl.nextXP - DEMO_XP} XP to Level {lvl.level + 1}</span>
+              <span className="text-xs" style={{ color: colors.textMuted }}>{lvl.nextXP - realXP} XP to Level {lvl.level + 1}</span>
               <span className="text-xs" style={{ color: accent.main }}>{lvl.progress}%</span>
             </div>
           </div>
@@ -286,16 +386,25 @@ export function Dashboard() {
               </a>
             </div>
             <div className="space-y-2.5">
-              {recentBadges.map(badge => (
-                <div key={badge.name} className="flex items-center gap-3 p-2.5 rounded-xl" style={{ background: badge.color, border: `1px solid ${badge.border}` }}>
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: badge.iconBg }}>{badge.icon}</div>
-                  <div>
-                    <div className="text-xs" style={{ fontWeight: 600, color: colors.text }}>{badge.name}</div>
-                    <div className="text-xs" style={{ color: colors.textMuted }}>{badge.desc}</div>
+              {recentBadges.length > 0 ? recentBadges.map((badge, index) => {
+                const style = getBadgeStyle(index);
+                return (
+                  <div key={badge.id || index} className="flex items-center gap-3 p-2.5 rounded-xl" style={{ background: style.bg, border: `1px solid ${style.border}` }}>
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: style.iconBg }}>
+                      <Award className="w-4 h-4" style={{ color: style.iconCol }} />
+                    </div>
+                    <div>
+                      <div className="text-xs" style={{ fontWeight: 600, color: colors.text }}>{badge.name}</div>
+                      <div className="text-xs" style={{ color: colors.textMuted }}>{badge.description || 'Badge Unlocked!'}</div>
+                    </div>
+                    <Star className="w-3 h-3 text-yellow-500 ml-auto" />
                   </div>
-                  <Star className="w-3 h-3 text-yellow-500 ml-auto" />
+                );
+              }) : (
+                <div className="text-center py-4 text-xs" style={{ color: colors.textMuted }}>
+                  No badges earned yet. Start studying!
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
@@ -304,10 +413,10 @@ export function Dashboard() {
             <h3 className="text-sm mb-3" style={{ fontWeight: 600, color: colors.text }}>This Week</h3>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: 'Total Hours', value: `${weeklyTotal}h`, color: accent.main },
-                { label: 'Sessions',    value: '14',              color: '#22c55e'   },
-                { label: 'Avg/Day',     value: `${(parseFloat(weeklyTotal) / 7).toFixed(1)}h`, color: '#f97316' },
-                { label: 'Streak',      value: String(DEMO_STREAK), color: '#8b5cf6' },
+                { label: 'Total Hours', value: `${weekHrs}h`, color: accent.main },
+                { label: 'Sessions',    value: String(weeklySessions.length), color: '#22c55e'   },
+                { label: 'Avg/Day',     value: `${weekAvg}h`, color: '#f97316' },
+                { label: 'Streak',      value: String(realStreak), color: '#8b5cf6' },
               ].map(stat => (
                 <div key={stat.label} className="p-2.5 rounded-xl text-center" style={{ background: colors.card2 }}>
                   <div style={{ color: stat.color, fontWeight: 700, fontSize: 16 }}>{stat.value}</div>

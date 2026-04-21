@@ -3,9 +3,56 @@ import Achievement  from '../models/Achievement.js';
 import StudySession from '../models/studySessionModel.js';
 import Task         from '../models/Task.js';
 import Goal         from '../models/goalModel.js';
-// NOTE: Note.js and UserSettings.js are empty — loaded dynamically below to avoid crash
 
-// ─── Achievement Definitions ──────────────────────────────────────────────────
+// 🌟 THE FIX: "Once-a-day" Consecutive Streak Logic
+const calculateRealStreak = (completedSessions) => {
+  if (!completedSessions || completedSessions.length === 0) return 0;
+
+  // 1. Kunin lahat ng petsa (YYYY-MM-DD) para literal na 1 entry lang per day
+  const uniqueDates = [...new Set(completedSessions.map(session => {
+    const date = new Date(session.startTime || session.createdAt);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }))].sort((a, b) => new Date(b) - new Date(a)); // Sort: Latest to Oldest
+
+  if (uniqueDates.length === 0) return 0;
+
+  // 2. Compute Today and Yesterday (YYYY-MM-DD)
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  
+  const yest = new Date(now);
+  yest.setDate(yest.getDate() - 1);
+  const yesterdayStr = `${yest.getFullYear()}-${String(yest.getMonth() + 1).padStart(2, '0')}-${String(yest.getDate()).padStart(2, '0')}`;
+
+  // 3. Kung di siya nag-log in kahapon o ngayon, putol na ang streak
+  if (uniqueDates[0] !== todayStr && uniqueDates[0] !== yesterdayStr) {
+    return 0;
+  }
+
+  // 4. Bilangin kung magkakasunod
+  let currentStreak = 1;
+  let dateToCheck = new Date(uniqueDates[0]);
+
+  for (let i = 1; i < uniqueDates.length; i++) {
+    const expectedPrevDate = new Date(dateToCheck);
+    expectedPrevDate.setDate(expectedPrevDate.getDate() - 1);
+    const expectedPrevStr = `${expectedPrevDate.getFullYear()}-${String(expectedPrevDate.getMonth() + 1).padStart(2, '0')}-${String(expectedPrevDate.getDate()).padStart(2, '0')}`;
+
+    if (uniqueDates[i] === expectedPrevStr) {
+      currentStreak++; 
+      dateToCheck = new Date(uniqueDates[i]); // Move pointer backward
+    } else {
+      break; // Naputol ang araw
+    }
+  }
+
+  return currentStreak;
+};
+
+
 export const ACHIEVEMENT_DEFS = [
   { id: 'first_steps',       name: 'First Steps',       description: 'Complete your first study session',    category: 'Beginner',    rarity: 'common',    xp: 50,   color: '#22c55e', iconKey: 'Rocket'    },
   { id: 'early_bird',        name: 'Early Bird',        description: 'Study before 8 AM',                    category: 'Habits',      rarity: 'common',    xp: 100,  color: '#fbbf24', iconKey: 'Sunrise'   },
@@ -24,12 +71,10 @@ export const ACHIEVEMENT_DEFS = [
   { id: 'knowledge_hoarder', name: 'Knowledge Hoarder', description: 'Create 50 study notes',                category: 'Study',       rarity: 'epic',      xp: 500,  color: '#4ade80', iconKey: 'Library'   },
 ];
 
-// ─── Safely get a model by name (returns null if not yet implemented) ─────────
-// This prevents crashes when Note.js / UserSettings.js are still empty files.
+// ─── Safely get a model by name ───────────────────────────────────────────────
 const safeGetModel = (modelName) => {
   try {
     const m = mongoose.model(modelName);
-    // Extra check: make sure it's a real registered model with a collection
     if (m && typeof m.countDocuments === 'function') return m;
     return null;
   } catch {
@@ -37,42 +82,8 @@ const safeGetModel = (modelName) => {
   }
 };
 
-// ─── Streak Calculator ────────────────────────────────────────────────────────
-function calcStreak(sessions) {
-  if (!sessions.length) return 0;
-
-  const uniqueDays = [...new Set(
-    sessions.map(s => {
-      const d = new Date(s.startTime);
-      d.setHours(0, 0, 0, 0);
-      return d.getTime();
-    })
-  )].sort((a, b) => b - a);
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayMs     = today.getTime();
-  const yesterdayMs = todayMs - 86400000;
-
-  if (uniqueDays[0] !== todayMs && uniqueDays[0] !== yesterdayMs) return 0;
-
-  let streak   = 0;
-  let expected = uniqueDays[0];
-
-  for (const day of uniqueDays) {
-    if (day === expected) {
-      streak++;
-      expected -= 86400000;
-    } else {
-      break;
-    }
-  }
-  return streak;
-}
-
 // ─── Gather all stats needed in one batch ────────────────────────────────────
 async function gatherStats(userId) {
-  // Dynamically resolve Note model — safe even if Note.js is still empty
   const NoteModel = safeGetModel('Note');
 
   const [sessions, taskDoneCount, goalDoneCount, noteCount] = await Promise.all([
@@ -86,7 +97,9 @@ async function gatherStats(userId) {
   const totalSeconds = sessions.reduce((sum, s) =>
     sum + Math.max(0, (s.duration || 0) - (s.pausedDuration || 0)), 0);
   const totalHours = totalSeconds / 3600;
-  const streak     = calcStreak(sessions);
+  
+  // 🌟 THE FIX IS IMPLEMENTED HERE
+  const streak = calculateRealStreak(sessions);
 
   const hasEarlySession = sessions.some(s => new Date(s.startTime).getHours() < 8);
   const hasLateSession  = sessions.some(s => new Date(s.startTime).getHours() >= 22);
