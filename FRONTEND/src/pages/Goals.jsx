@@ -386,7 +386,6 @@ export function Goals() {
                 Delete
               </button>
             </div>
-            
           </div>
         </div>
       )}

@@ -344,6 +344,7 @@ export function Login() {
       const res = await fetch(
         `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/google/url${params}`
       );
+      
       const { url } = await res.json();
       window.location.href = url;
     } catch {
