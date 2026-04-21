@@ -465,3 +465,48 @@ export const getClockifyEntries = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch Clockify entries', error: error.message });
   }
 };
+
+// @desc    Get raw session data for Analytics computations
+// @route   GET /api/study-timer/analytics
+// @access  Private
+export const getAnalyticsData = async (req, res) => {
+  try {
+    const { timeframe } = req.query;
+    const userId = req.user.id || req.user._id;
+
+    const now = new Date();
+    let startDate = new Date();
+
+    if (timeframe === 'daily') startDate.setHours(0, 0, 0, 0);
+    else if (timeframe === 'weekly') startDate.setDate(now.getDate() - 7);
+    else if (timeframe === 'monthly') startDate.setDate(now.getDate() - 30);
+    else startDate.setDate(now.getDate() - 7); // Default to weekly
+
+    const sessions = await StudySession.find({
+      user: userId,
+      status: 'completed',
+      startTime: { $gte: startDate }
+    }).sort({ startTime: 1 });
+
+    // I-format ang bawat session para mabasa ng Analytics.jsx display logic
+    const formattedData = sessions.map(session => {
+      // Compute actual duration in minutes (Duration minus Paused time)
+      const actualSeconds = Math.max(0, (session.duration || 0) - (session.pausedDuration || 0));
+      
+      // 🌟 TEST FIX: Kung mas mababa sa 1 minute (dahil sa trial/test), gawin nating 1 minute
+      const durationMinutes = actualSeconds < 60 ? 1 : Math.floor(actualSeconds / 60);
+
+      return {
+        id: session._id,
+        subject: session.subject || 'General',
+        date: session.startTime,
+        durationMinutes: durationMinutes
+      };
+    });
+
+    res.status(200).json(formattedData);
+  } catch (error) {
+    console.error('Analytics Backend Error:', error);
+    res.status(500).json({ message: 'Failed to fetch analytics data' });
+  }
+};

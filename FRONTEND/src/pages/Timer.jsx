@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAppearance } from '../components/AppearanceProvider';
-import { fetchTasks } from '../api/taskApi';
+import { useTasks, TODAY } from '../components/TaskContext'; 
 import {
-  Brain, Coffee, Pencil, Play, Pause, RotateCcw, SkipForward,
-  X, Plus, ChevronDown, Trash2, Save,
+  Brain, Coffee, Play, Pause, RotateCcw, SkipForward,
+  X, Plus, ChevronDown, Save, Trash2
 } from 'lucide-react';
 import {
   startStudySession,
@@ -120,6 +120,9 @@ export function StudyTimer() {
   const { colors, accent } = useAppearance();
   const accentGlow = `rgba(${accent.rgb},0.45)`;
 
+  const { tasks: globalTasks, remove: removeTaskGlobal, addTask: addTaskGlobal } = useTasks();
+  const activeTasks = (globalTasks || []).filter(t => !t.done && t.status !== 'completed' && t.status !== 'done');
+
   const [timerSettings, setTimerSettings] = useState(loadSavedTimerSettings);
   const [modeConfig, setModeConfig] = useState(() =>
     buildModeConfig(accent.main, accentGlow, loadSavedTimerSettings())
@@ -138,11 +141,9 @@ export function StudyTimer() {
   const [editingGoal,    setEditingGoal]   = useState(false);
   const [goalDraft,      setGoalDraft]     = useState(String(sessionGoal));
   const [selectedTask,   setSelectedTask]  = useState('');
-  const [tasks,          setTasks]         = useState([]);
+  
   const [addingTask,     setAddingTask]    = useState(false);
   const [newTask,        setNewTask]       = useState('');
-  const [editingTaskIdx, setEditingTaskIdx] = useState(null);
-  const [editingTaskVal, setEditingTaskVal] = useState('');
   const [soundEnabled,   setSoundEnabled]  = useState(() => loadSavedTimerSettings().soundEnabled);
   const [history,        setHistory]       = useState([]);
   const [statsOpen,      setStatsOpen]     = useState(false);
@@ -150,6 +151,7 @@ export function StudyTimer() {
   const [loading,        setLoading]       = useState(true);
   const [saving,         setSaving]        = useState(false);
   const [sessionNotes,   setSessionNotes]  = useState('');
+  const [showAbandonPrompt, setShowAbandonPrompt] = useState(false);
 
   const intervalRef       = useRef(null);
   const newTaskRef        = useRef(null);
@@ -179,29 +181,17 @@ export function StudyTimer() {
     if (!timerSettings.notifyOnComplete) return;
     const names  = { work: 'Focus Session', short: 'Short Break', long: 'Long Break' };
     const emojis = { work: '🎯', short: '☕', long: '🌟' };
-    showNotif(
-      `${emojis[fromMode]} ${names[fromMode]} Complete`,
-      `${names[toMode]} is ready.`,
-      'study-timer'
-    );
+    showNotif(`${emojis[fromMode]} ${names[fromMode]} Complete`, `${names[toMode]} is ready.`, 'study-timer');
   };
 
   const showTaskReminder = () => {
     if (!timerSettings.taskReminders) return;
-    showNotif(
-      '📚 Focus Session Started',
-      `Working on: ${selectedTask || 'Study'}. Stay focused!`,
-      'task-reminder'
-    );
+    showNotif('📚 Focus Session Started', `Working on: ${selectedTask || 'Study'}. Stay focused!`, 'task-reminder');
   };
 
   const showBreakReminder = () => {
     if (!timerSettings.breakReminders) return;
-    showNotif(
-      '☕ Time to Recharge',
-      "Take this time to rest and hydrate. You've earned it!",
-      'break-reminder'
-    );
+    showNotif('☕ Time to Recharge', "Take this time to rest and hydrate. You've earned it!", 'break-reminder');
   };
 
   // ── Effects ──────────────────────────────────────────────────────────────────
@@ -212,6 +202,13 @@ export function StudyTimer() {
   useEffect(() => {
     setSoundEnabled(timerSettings.soundEnabled);
   }, [timerSettings.soundEnabled]);
+
+  // Set default selected task from global state if empty
+  useEffect(() => {
+    if (!selectedTask && activeTasks.length > 0 && !sessionLocked) {
+      setSelectedTask(activeTasks[0].title);
+    }
+  }, [activeTasks, selectedTask, sessionLocked]);
 
   useEffect(() => {
     const needs = timerSettings.notifyOnComplete || timerSettings.taskReminders || timerSettings.breakReminders;
@@ -244,7 +241,6 @@ export function StudyTimer() {
   useEffect(() => {
     const next = buildModeConfig(accent.main, accentGlow, timerSettings);
     setModeConfig(next);
-    // Only reset timeLeft if not running AND there's no active session (i.e., not paused)
     if (!running && !activeSession) setTimeLeft(next[mode].duration);
   }, [timerSettings, mode, running, accent.main, accentGlow, activeSession]);
 
@@ -293,9 +289,7 @@ export function StudyTimer() {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      let currentSelectedTask = '';
 
-      // 1. Restore active session with correct time calculation
       const activeRes = await fetchActiveSession();
       if (activeRes.data) {
         const session        = activeRes.data;
@@ -319,11 +313,9 @@ export function StudyTimer() {
         if (session.notes) setSessionNotes(session.notes);
         if (session.title) {
           setSelectedTask(session.title);
-          currentSelectedTask = session.title;
         }
       }
 
-      // 2. Recent history
       const histRes = await fetchStudySessions({ limit: 10, status: 'completed' });
       if (histRes.data) {
         setHistory(histRes.data.map(s => ({
@@ -336,7 +328,6 @@ export function StudyTimer() {
         })));
       }
 
-      // 3. Today's completed WORK sessions for Pomodoro counter
       const todayStart = getTodayStart();
       const todayRes   = await fetchStudySessions({
         limit:     100,
@@ -350,51 +341,12 @@ export function StudyTimer() {
         todayWorkCountRef.current = count;
       }
 
-      // 4. All-time stats
       const statsRes = await fetchStudySessionStats();
       if (statsRes.data) {
         setTotalStats({
           totalSessions:       statsRes.data.overview.totalSessions       || 0,
           totalActualDuration: statsRes.data.overview.totalActualDuration || 0,
         });
-      }
-
-      // 5. Load DB Tasks + Local saved tasks
-      try {
-        const fetchedTasks = await fetchTasks();
-        const dbTasks = Array.isArray(fetchedTasks) ? fetchedTasks : (fetchedTasks?.data || []);
-        
-        // Filter out completed tasks and get titles
-        const activeDbTitles = dbTasks
-          .filter(t => t.status !== 'completed' && t.status !== 'done')
-          .map(t => t.title)
-          .filter(Boolean); // remove empty/undefined
-
-        const localTasks = [];
-        const savedLocal = localStorage.getItem('studyTasks');
-        if (savedLocal) {
-          try { localTasks.push(...JSON.parse(savedLocal)); } catch {}
-        }
-
-        // Combine and remove duplicates
-        const combinedTasks = [...new Set([...activeDbTitles, ...localTasks])];
-        setTasks(combinedTasks);
-        
-        // Only set default selection if we don't already have one from an active session
-        if (!currentSelectedTask && combinedTasks.length > 0) {
-          setSelectedTask(combinedTasks[0]);
-        }
-      } catch (err) {
-        console.error('Failed to load DB tasks:', err);
-        // Fallback to local
-        const savedLocal = localStorage.getItem('studyTasks');
-        if (savedLocal) {
-          try {
-            const parsed = JSON.parse(savedLocal);
-            setTasks(parsed);
-            if (!currentSelectedTask && parsed.length > 0) setSelectedTask(parsed[0]);
-          } catch {}
-        }
       }
 
     } catch (err) {
@@ -404,12 +356,11 @@ export function StudyTimer() {
     }
   };
 
-  // ── Start ────────────────────────────────────────────────────────────────────
+  
   const handleStartSession = async () => {
     const taskName = selectedTask.trim() || `${config.label} Session`;
     const targetDuration = config.duration;
-    
-    // OPTIMISTIC UPDATE: Start the timer instantly for a snappy UI
+
     setTimeLeft(targetDuration);
     setRunning(true); 
     playSound('start');
@@ -419,7 +370,7 @@ export function StudyTimer() {
       const res = await startStudySession({ title: taskName, subject, mode, notes: '' });
       
       const sessionData = res?.data || res;
-      if (sessionData && sessionData._id) {
+      if (sessionData && (sessionData._id || sessionData.id)) {
         setActiveSession(sessionData);
         
         if (mode === 'work') showTaskReminder();
@@ -427,57 +378,63 @@ export function StudyTimer() {
       }
     } catch (err) {
       console.error('Error starting session:', err);
+      
       if (err?.response?.status === 400 && err?.response?.data?.existingSession) {
-        setActiveSession(err.response.data.existingSession);
-        setRunning(err.response.data.existingSession.status === 'running');
-      } else {
-        setRunning(false); 
-        setTimeLeft(targetDuration);
-        alert('Failed to connect to the backend. Please check your network or server.');
+        try {
+          const ghostSessionId = err.response.data.existingSession._id;
+          await abandonStudySession(ghostSessionId); 
+
+          const subject = taskName.split(' – ')[0] || taskName.split(' ')[0];
+          const retryRes = await startStudySession({ title: taskName, subject, mode, notes: '' });
+          
+          const sessionData = retryRes?.data || retryRes;
+          if (sessionData && (sessionData._id || sessionData.id)) {
+            setActiveSession(sessionData);
+            if (mode === 'work') showTaskReminder();
+            else if (mode === 'long') showBreakReminder();
+            return; // Success! Tapos na.
+          }
+        } catch (retryErr) {
+          console.error('Failed to retry starting session:', retryErr);
+        }
       }
+
+      setRunning(false); 
+      setTimeLeft(targetDuration);
+      alert('Failed to connect to the backend. Please check your network or server.');
     }
   };
 
   // ── Pause ────────────────────────────────────────────────────────────────────
   const handlePauseSession = async () => {
-    if (!activeSession) return;
-    
-    // OPTIMISTIC UPDATE
     setRunning(false);
     playSound('pause');
     
+    if (!activeSession) return; 
+   
     try {
       const res = await pauseStudySession(activeSession._id);
-      const sessionData = res?.data || res;
-      
-      if (sessionData && sessionData._id) {
-        setActiveSession(sessionData);
-      }
+      setActiveSession(res.data);
     } catch (err) {
-      console.error('Error pausing session:', err);
-      // Revert if server fails
       setRunning(true);
+      console.error('Error pausing session:', err);
     }
   };
 
   // ── Resume ───────────────────────────────────────────────────────────────────
   const handleResumeSession = async () => {
     if (!activeSession) return;
-    
-    // OPTIMISTIC UPDATE
     setRunning(true);
     playSound('resume');
     
     try {
       const res = await resumeStudySession(activeSession._id);
       const sessionData = res?.data || res;
-      
       if (sessionData && sessionData._id) {
         setActiveSession(sessionData);
       }
     } catch (err) {
       console.error('Error resuming session:', err);
-      // Revert if server fails
       setRunning(false);
       alert('Failed to resume. Your session might be out of sync with the server.');
     }
@@ -555,15 +512,40 @@ export function StudyTimer() {
   onCompleteRef.current = handleSessionComplete;
 
   // ── Abandon ──────────────────────────────────────────────────────────────────
-  const handleAbandonSession = async () => {
+  const handleAbandonSession = () => {
     if (!activeSession) return;
-    if (!confirm('Abandon this session? It will not be saved.')) return;
+    setShowAbandonPrompt(true);
+  };
+
+  const executeAbandonSession = async () => {
+    if (!activeSession) return;
     const sessionId = activeSession._id;
     setRunning(false);
     setActiveSession(null);
     setTimeLeft(config.duration);
     setSessionNotes('');
+    setShowAbandonPrompt(false);
     try { await abandonStudySession(sessionId); } catch (err) { console.error(err); }
+  };
+
+  // ── Delete History ──────────────────────────────────────────────────────────
+  const executeDeleteSession = async (sessionItem) => {
+    if (!sessionItem) return;
+    const targetId = sessionItem.id || sessionItem._id;
+    setHistory(prev => prev.filter(item => (item.id || item._id) !== targetId));
+    if (sessionItem.mode === 'work') {
+      setTotalStats(prev => ({
+        ...prev,
+        totalSessions: Math.max(0, prev.totalSessions - 1),
+      }));
+    }
+    if (targetId) {
+      try {
+        await deleteStudySession(targetId);
+      } catch (err) { 
+        console.error('Failed to delete in backend:', err); 
+      }
+    }
   };
 
   // ── Mode switch ───────────────────────────────────────────────────────────────
@@ -582,35 +564,24 @@ export function StudyTimer() {
   // ── Skip ─────────────────────────────────────────────────────────────────────
   const skip = () => switchMode({ work: 'short', short: 'work', long: 'work' }[mode]);
 
-  // ── Task management ──────────────────────────────────────────────────────────
-  const addTaskItem = () => {
+  // ── Task management (SYNCED WITH GLOBAL DB) ──────────────────────────────────
+  const handleAddTaskItem = () => {
     const t = newTask.trim();
     if (!t) { setAddingTask(false); return; }
-    const next = [...tasks, t];
-    setTasks(next);
-    localStorage.setItem('studyTasks', JSON.stringify(next));
+    
+    const fallbackDate = typeof TODAY !== 'undefined' ? TODAY : new Date().toISOString().split('T')[0];
+    addTaskGlobal({
+      title: t,
+      subject: 'Others',
+      date: fallbackDate,
+      startTime: '09:00',
+      endTime: '10:00',
+      priority: 'medium'
+    });
+    
     setNewTask('');
     setAddingTask(false);
-    if (!selectedTask) setSelectedTask(t);
-  };
-
-  const removeTask = (i) => {
-    const next = tasks.filter((_, j) => j !== i);
-    setTasks(next);
-    localStorage.setItem('studyTasks', JSON.stringify(next));
-    if (selectedTask === tasks[i]) setSelectedTask(next[0] || '');
-  };
-
-  const commitEditTask = () => {
-    if (editingTaskIdx === null) return;
-    const t = editingTaskVal.trim();
-    if (t) {
-      const next = tasks.map((x, i) => i === editingTaskIdx ? t : x);
-      setTasks(next);
-      localStorage.setItem('studyTasks', JSON.stringify(next));
-      if (selectedTask === tasks[editingTaskIdx]) setSelectedTask(t);
-    }
-    setEditingTaskIdx(null);
+    setSelectedTask(t);
   };
 
   const openGoalEdit = () => {
@@ -644,27 +615,17 @@ export function StudyTimer() {
 
         {/* ── Page header ── */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-
-          {/* Left: icon + title */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
-              style={{
-                background: `rgba(${accent.rgb},0.12)`,
-                border:     `1px solid rgba(${accent.rgb},0.2)`,
-              }}>
+              style={{ background: `rgba(${accent.rgb},0.12)`, border: `1px solid rgba(${accent.rgb},0.2)` }}>
               <Brain className="w-5 h-5" style={{ color: accent.main }} />
             </div>
             <div>
-              <h1 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.4px', color: colors.text }}>
-                Study Timer
-              </h1>
-              <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>
-                Pomodoro-style focus sessions
-              </p>
+              <h1 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.4px', color: colors.text }}>Study Timer</h1>
+              <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>Pomodoro-style focus sessions</p>
             </div>
           </div>
 
-          {/* Right: editable duration controls */}
           <div className="flex items-center gap-2 flex-wrap">
             {[
               { label: 'Focus', key: 'focusDuration', icon: Brain, color: accent.main, bgColor: `rgba(${accent.rgb},0.1)`, borderColor: `rgba(${accent.rgb},0.2)` },
@@ -720,7 +681,6 @@ export function StudyTimer() {
           {/* LEFT: timer */}
           <div className="flex flex-col gap-4 flex-1 min-w-0">
 
-            {/* Mode tabs */}
             <div className="p-1.5 rounded-2xl flex gap-1.5" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
               {Object.keys(modeConfig).map(m => (
                 <button key={m} onClick={() => switchMode(m)}
@@ -733,10 +693,8 @@ export function StudyTimer() {
               ))}
             </div>
 
-            {/* Timer card */}
             <div className="rounded-3xl p-5 sm:p-8 flex flex-col items-center" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
 
-              {/* Ring */}
               <div ref={ringWrapRef} className="w-full flex items-center justify-center" style={{ maxWidth: 312 }}>
                 <div className="relative flex items-center justify-center" style={{ width: ringSize, height: ringSize }}>
                   <div className="absolute inset-0 rounded-full pointer-events-none"
@@ -760,7 +718,7 @@ export function StudyTimer() {
                 </div>
               </div>
 
-              {/* Task selector */}
+              {/* Task selector using GLOBAL tasks */}
               <div className="w-full mt-6 mb-3" style={{ maxWidth: 320 }}>
                 <p className="text-xs mb-2 text-center" style={{ fontWeight: 500, color: colors.textMuted }}>
                   Currently working on
@@ -775,11 +733,17 @@ export function StudyTimer() {
                     cursor:       sessionLocked ? 'not-allowed' : 'pointer',
                     opacity:      sessionLocked ? 0.75 : 1,
                   }}
-                  value={selectedTask}
+                  value={sessionLocked ? (activeSession?.title || selectedTask) : selectedTask}
                   onChange={e => setSelectedTask(e.target.value)}
                   disabled={sessionLocked}>
-                  {tasks.length === 0 && <option value="">Add a task first</option>}
-                  {tasks.map(t => <option key={t} value={t}>{t}</option>)}
+                  
+                  {!sessionLocked && activeTasks.length === 0 && <option value="">Add a task first</option>}
+                  
+                  {sessionLocked && (
+                    <option value={activeSession?.title || selectedTask}>{activeSession?.title || selectedTask}</option>
+                  )}
+
+                  {!sessionLocked && activeTasks.map(t => <option key={t.id} value={t.title}>{t.title}</option>)}
                 </select>
                 {sessionLocked && (
                   <p className="text-xs text-center mt-1" style={{ color: colors.textMuted }}>
@@ -788,7 +752,6 @@ export function StudyTimer() {
                 )}
               </div>
 
-              {/* Session notes */}
               {activeSession && (
                 <div className="w-full mb-5" style={{ maxWidth: 320 }}>
                   <p className="text-xs mb-2 text-center" style={{ fontWeight: 500, color: colors.textMuted }}>
@@ -804,7 +767,6 @@ export function StudyTimer() {
                 </div>
               )}
 
-              {/* Controls */}
               <div className="flex items-center justify-center gap-4">
                 <button onClick={reset}
                   className="w-12 h-12 rounded-2xl flex items-center justify-center hover:scale-105 active:scale-95"
@@ -814,9 +776,14 @@ export function StudyTimer() {
 
                 {!activeSession && !running ? (
                   <button onClick={handleStartSession}
-                    className="w-20 h-20 rounded-2xl flex items-center justify-center text-white hover:scale-105 active:scale-95"
-                    style={{ background: `linear-gradient(135deg, ${config.color}, ${config.color}cc)`, boxShadow: `0 0 32px ${config.glow}, 0 8px 24px rgba(0,0,0,0.25)` }}
-                    disabled={loading}>
+                    disabled={loading || !selectedTask || selectedTask.trim() === ''}
+                    className={`w-20 h-20 rounded-2xl flex items-center justify-center transition-all ${(!selectedTask || selectedTask.trim() === '') ? 'opacity-50 cursor-not-allowed' : 'text-white hover:scale-105 active:scale-95'}`}
+                    style={{ 
+                      background: (!selectedTask || selectedTask.trim() === '') ? colors.card2 : `linear-gradient(135deg, ${config.color}, ${config.color}cc)`, 
+                      border: (!selectedTask || selectedTask.trim() === '') ? `2px dashed ${colors.border}` : 'none',
+                      color: (!selectedTask || selectedTask.trim() === '') ? colors.textMuted : '#fff',
+                      boxShadow: (!selectedTask || selectedTask.trim() === '') ? 'none' : `0 0 32px ${config.glow}, 0 8px 24px rgba(0,0,0,0.25)` 
+                    }}>
                     <Play className="w-8 h-8 ml-1" />
                   </button>
                 ) : running ? (
@@ -840,7 +807,6 @@ export function StudyTimer() {
                 </button>
               </div>
 
-              {/* Save & Stop / Abandon */}
               {activeSession && (
                 <div className="flex items-center justify-center gap-3 mt-4">
                   <button
@@ -862,7 +828,6 @@ export function StudyTimer() {
               )}
             </div>
 
-            {/* Session dots */}
             <div className="px-5 py-4 rounded-2xl flex flex-wrap items-center justify-between gap-3"
               style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
               <div>
@@ -915,7 +880,6 @@ export function StudyTimer() {
           {/* RIGHT: stats + tasks + history */}
           <div className="flex flex-col gap-4 lg:w-72 xl:w-80 shrink-0">
 
-            {/* Stats */}
             <div className="rounded-2xl overflow-hidden" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
               <button className="w-full flex items-center justify-between px-5 py-4" onClick={() => setStatsOpen(v => !v)}>
                 <h3 className="text-sm" style={{ fontWeight: 700, color: colors.text }}>Stats</h3>
@@ -935,7 +899,7 @@ export function StudyTimer() {
               </div>
             </div>
 
-            {/* Study tasks */}
+            {/* 🌟 GLOBAL STUDY TASKS */}
             <div className="rounded-2xl p-5" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm" style={{ fontWeight: 700, color: colors.text }}>Study Tasks</h3>
@@ -952,48 +916,35 @@ export function StudyTimer() {
                 </button>
               </div>
               <div className="flex flex-col gap-1.5">
-                {tasks.map((task, i) => (
-                  <div key={i}
+                {activeTasks.map((task) => (
+                  <div key={task.id}
                     className="flex items-center gap-2 px-3 py-2 rounded-xl group transition-colors"
                     style={{
-                      background: selectedTask === task ? `rgba(${accent.rgb},0.1)` : 'transparent',
-                      border:     `1px solid ${selectedTask === task ? `rgba(${accent.rgb},0.2)` : 'transparent'}`,
+                      background: selectedTask === task.title ? `rgba(${accent.rgb},0.1)` : 'transparent',
+                      border:     `1px solid ${selectedTask === task.title ? `rgba(${accent.rgb},0.2)` : 'transparent'}`,
                     }}>
                     <button
-                      onClick={() => !sessionLocked && setSelectedTask(task)}
+                      onClick={() => !sessionLocked && setSelectedTask(task.title)}
                       className="w-2 h-2 rounded-full shrink-0"
                       style={{
-                        background: selectedTask === task ? accent.main : colors.border,
-                        border:     `1px solid ${selectedTask === task ? accent.main : colors.textMuted}`,
+                        background: selectedTask === task.title ? accent.main : colors.border,
+                        border:     `1px solid ${selectedTask === task.title ? accent.main : colors.textMuted}`,
                       }} />
-                    {editingTaskIdx === i ? (
-                      <input autoFocus
-                        value={editingTaskVal}
-                        onChange={e => setEditingTaskVal(e.target.value)}
-                        onBlur={commitEditTask}
-                        onKeyDown={e => { if (e.key === 'Enter') commitEditTask(); if (e.key === 'Escape') setEditingTaskIdx(null); }}
-                        className="flex-1 bg-transparent text-xs outline-none"
-                        style={{ color: colors.text }} />
-                    ) : (
-                      <span
-                        className="flex-1 text-xs truncate"
-                        style={{
-                          color:      selectedTask === task ? colors.text : colors.textMuted,
-                          fontWeight: selectedTask === task ? 600 : 400,
-                          cursor:     sessionLocked ? 'default' : 'pointer',
-                        }}
-                        onClick={() => !sessionLocked && setSelectedTask(task)}>
-                        {task}
-                      </span>
-                    )}
+                    
+                    <span
+                      className="flex-1 text-xs truncate"
+                      style={{
+                        color:      selectedTask === task.title ? colors.text : colors.textMuted,
+                        fontWeight: selectedTask === task.title ? 600 : 400,
+                        cursor:     sessionLocked ? 'default' : 'pointer',
+                      }}
+                      onClick={() => !sessionLocked && setSelectedTask(task.title)}>
+                      {task.title}
+                    </span>
+                    
                     <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <button
-                        onClick={() => { if (!sessionLocked) { setEditingTaskIdx(i); setEditingTaskVal(task); } }}
-                        style={{ color: colors.textMuted }}>
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={() => !sessionLocked && removeTask(i)}
+                        onClick={() => !sessionLocked && removeTaskGlobal(task.id)}
                         className="hover:text-red-400"
                         style={{ color: colors.textMuted }}>
                         <X className="w-3 h-3" />
@@ -1001,20 +952,22 @@ export function StudyTimer() {
                     </div>
                   </div>
                 ))}
+                
                 {addingTask && (
                   <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: `rgba(${accent.rgb},0.08)` }}>
                     <input
                       ref={newTaskRef}
                       value={newTask}
                       onChange={e => setNewTask(e.target.value)}
-                      onBlur={addTaskItem}
-                      onKeyDown={e => { if (e.key === 'Enter') addTaskItem(); if (e.key === 'Escape') setAddingTask(false); }}
+                      onBlur={handleAddTaskItem}
+                      onKeyDown={e => { if (e.key === 'Enter') handleAddTaskItem(); if (e.key === 'Escape') setAddingTask(false); }}
                       className="flex-1 bg-transparent text-xs outline-none"
                       style={{ color: colors.text }}
                       placeholder="New task..." />
                   </div>
                 )}
-                {tasks.length === 0 && !addingTask && (
+                
+                {activeTasks.length === 0 && !addingTask && (
                   <div className="text-center py-3">
                     <span className="text-xs" style={{ color: colors.textMuted }}>No tasks yet — add one above</span>
                   </div>
@@ -1022,7 +975,6 @@ export function StudyTimer() {
               </div>
             </div>
 
-            {/* Session history */}
             <div className="rounded-2xl p-5" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
               <h3 className="text-sm mb-3" style={{ fontWeight: 700, color: colors.text }}>Session History</h3>
               <div className="flex flex-col gap-2">
@@ -1039,12 +991,14 @@ export function StudyTimer() {
                     </div>
                     <span className="text-xs shrink-0" style={{ color: colors.textMuted }}>{h.duration}</span>
                     <span className="text-xs shrink-0" style={{ color: colors.textMuted }}>{h.time}</span>
+                    
                     <button
-  onClick={() => setSessionToDelete(h)}
-  className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-400"
-  style={{ color: colors.textMuted }}>
-  <Trash2 className="w-3 h-3" />
-</button>
+                      onClick={() => executeDeleteSession(h)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-400"
+                      style={{ color: colors.textMuted }}>
+                      <X className="w-3 h-3" />
+                    </button>
+                    
                   </div>
                 ))}
                 {history.length === 0 && (
@@ -1058,6 +1012,41 @@ export function StudyTimer() {
           </div>
         </div>
       </div>
+
+      {/* 1. Abandon Session Modal */}
+      {showAbandonPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setShowAbandonPrompt(false)}>
+          
+          <div className="w-full max-w-sm rounded-3xl p-6 flex flex-col gap-4 text-center transform transition-all"
+            style={{ background: colors.card, border: `1px solid ${colors.border}`, boxShadow: '0 32px 64px rgba(0,0,0,0.5)' }}
+            onClick={e => e.stopPropagation()}>
+            
+            <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center" style={{ background: 'rgba(239, 68, 68, 0.1)' }}>
+              <X className="w-8 h-8" style={{ color: '#ef4444' }} />
+            </div>
+            
+            <div>
+              <h3 className="text-lg mb-1.5" style={{ fontWeight: 700, color: colors.text }}>Abandon Session?</h3>
+              <p className="text-sm leading-relaxed" style={{ color: colors.textMuted }}>
+                Are you sure you want to abandon this session? It will not be saved to your history.
+              </p>
+            </div>
+            
+            <div className="flex gap-3 mt-2">
+              <button onClick={() => setShowAbandonPrompt(false)} className="flex-1 px-4 py-2.5 rounded-xl text-sm transition-all hover:opacity-80"
+                style={{ background: colors.card2, color: colors.textSub, fontWeight: 600 }}>
+                Cancel
+              </button>
+              <button onClick={executeAbandonSession} className="flex-1 px-4 py-2.5 rounded-xl text-white text-sm transition-all hover:scale-105 active:scale-95"
+                style={{ background: '#ef4444', fontWeight: 600, boxShadow: '0 0 16px rgba(239, 68, 68, 0.3)' }}>
+                Abandon
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
