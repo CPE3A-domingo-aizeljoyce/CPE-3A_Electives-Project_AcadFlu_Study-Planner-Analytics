@@ -417,7 +417,6 @@ export const deleteAccount = async (req, res) => {
       StudySession.deleteMany({ user: userId }),
       Task        .deleteMany({ user: userId }),
       Goal        .deleteMany({ user: userId }),
-      Notification.deleteMany({ user: userId }),
     ]);
 
     // Tanggalin ang user mismo

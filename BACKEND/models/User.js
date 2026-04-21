@@ -86,13 +86,11 @@ userSchema.post('findOneAndDelete', async function (doc) {
     const StudySession = mongoose.model('StudySession');
     const Task         = mongoose.model('Task');
     const Goal         = mongoose.model('Goal');
-    const Notification = mongoose.model('Notification');
 
     await Promise.all([
       StudySession.deleteMany({ user: userId }),
       Task        .deleteMany({ user: userId }),
       Goal        .deleteMany({ user: userId }),
-      Notification.deleteMany({ user: userId }),
     ]);
 
     // ── Uncomment below once Note / UserSettings / Achievement are implemented
