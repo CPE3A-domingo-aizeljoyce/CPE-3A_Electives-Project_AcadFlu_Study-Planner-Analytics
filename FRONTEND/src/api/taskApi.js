@@ -1,76 +1,83 @@
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import axios from 'axios';
 
-function authHeader() {
+const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/tasks/`;
+
+const getConfig = () => {
   const token = localStorage.getItem('token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+  return {
+    headers: { Authorization: `Bearer ${token}` },
+  };
+};
 
-async function handleResponse(res) {
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'Request failed');
-  return data;
-}
-
-// GET /api/tasks
 export const fetchTasks = async () => {
-  const res = await fetch(`${BASE}/api/tasks`, {
-    headers: authHeader(),
-  });
-  return handleResponse(res);
+  const response = await axios.get(API_URL, getConfig());
+  return response.data;
 };
 
-// POST /api/tasks
-export const createNewTask = async (data) => {
-  const res = await fetch(`${BASE}/api/tasks`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeader() },
-    body:    JSON.stringify(data),
-  });
-  return handleResponse(res);
+export const fetchTask = async (id) => {
+  const response = await axios.get(`${API_URL}${id}`, getConfig());
+  return response.data;
 };
 
-// PUT /api/tasks/:id  ← NEW
-export const updateExistingTask = async (id, data) => {
-  const res = await fetch(`${BASE}/api/tasks/${id}`, {
-    method:  'PUT',
-    headers: { 'Content-Type': 'application/json', ...authHeader() },
-    body:    JSON.stringify(data),
-  });
-  return handleResponse(res);
+export const createNewTask = async (taskData) => {
+  const response = await axios.post(API_URL, taskData, getConfig());
+  return response.data;
 };
 
-// DELETE /api/tasks/:id
+export const updateExistingTask = async (id, taskData) => {
+  const response = await axios.put(`${API_URL}${id}`, taskData, getConfig());
+  return response.data;
+};
+
 export const deleteExistingTask = async (id) => {
-  const res = await fetch(`${BASE}/api/tasks/${id}`, {
-    method:  'DELETE',
-    headers: authHeader(),
-  });
-  return handleResponse(res);
+  const response = await axios.delete(`${API_URL}${id}`, getConfig());
+  return response.data;
 };
 
-// PATCH /api/tasks/:id/toggle
 export const toggleTaskDone = async (id) => {
-  const res = await fetch(`${BASE}/api/tasks/${id}/toggle`, {
-    method:  'PATCH',
-    headers: authHeader(),
-  });
-  return handleResponse(res);
+  const response = await axios.patch(`${API_URL}${id}/toggle`, {}, getConfig());
+  return response.data;
 };
 
-// PATCH /api/tasks/:id/status
 export const updateStatusTask = async (id, status) => {
-  const res = await fetch(`${BASE}/api/tasks/${id}/status`, {
-    method:  'PATCH',
-    headers: { 'Content-Type': 'application/json', ...authHeader() },
-    body:    JSON.stringify({ status }),
-  });
-  return handleResponse(res);
+  const response = await axios.patch(`${API_URL}${id}/status`, { status }, getConfig());
+  return response.data;
 };
 
-export const syncTaskToCalendar = async (id) => {
-  const res = await fetch(`${BASE}/api/tasks/${id}/sync-calendar`, {
-    method:  'POST',
-    headers: authHeader(),
+export const syncTaskToCalendar = async (taskId) => {
+  const response = await axios.post(`${API_URL}${taskId}/sync-calendar`, {}, getConfig());
+  return response.data;
+};
+
+export const fetchCalendarEvents = async (startDate, endDate) => {
+  const response = await axios.get(`${API_URL}calendar/events`, {
+    ...getConfig(),
+    params: {
+      startDate: startDate.toISOString(),
+      endDate:   endDate.toISOString(),
+    },
   });
-  return handleResponse(res);
+  return response.data;
+};
+
+export const fetchCalendarStats = async (startDate, endDate) => {
+  const response = await axios.get(`${API_URL}calendar/stats`, {
+    ...getConfig(),
+    params: {
+      startDate: startDate.toISOString(),
+      endDate:   endDate.toISOString(),
+    },
+  });
+  return response.data;
+};
+
+// ✅ NEW — triggers 2-way sync: checks Google Calendar for remotely deleted events
+// and removes matching tasks from MongoDB
+export const triggerCalendarSync = async () => {
+  const response = await axios.post(
+    `${API_URL}calendar/sync-from-calendar`,
+    {},
+    getConfig()
+  );
+  return response.data;
 };

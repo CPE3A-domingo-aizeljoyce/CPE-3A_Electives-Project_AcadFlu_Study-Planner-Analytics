@@ -50,10 +50,15 @@ const taskSchema = new mongoose.Schema({
     type:    String,
     default: null,
   },
-  // ✅ NEW — true when this task has an active linked event in Google Calendar
+  // ✅ true only when a Calendar event was actually created
   calendarSynced: {
     type:    Boolean,
     default: false,
+  },
+  // ✅ last time this task was confirmed up-to-date with Google Calendar
+  lastCalendarSyncAt: {
+    type:    Date,
+    default: null,
   },
   description: {
     type:    String,

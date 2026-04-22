@@ -10,31 +10,32 @@ import {
   syncTaskToCalendar,
   getCalendarEvents,
   getCalendarStats,
+  syncFromCalendar,          // ← NEW
 } from '../controllers/taskController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// All routes require authentication
 router.use(protect);
 
-// CRUD operations
+// CRUD
 router.route('/')
-  .get(getTasks)           // GET /api/tasks - get all tasks for user
-  .post(createTask);       // POST /api/tasks - create new task
+  .get(getTasks)
+  .post(createTask);
 
 router.route('/:id')
-  .get(getTask)            // GET /api/tasks/:id - get single task
-  .put(updateTask)         // PUT /api/tasks/:id - update task
-  .delete(deleteTask);     // DELETE /api/tasks/:id - delete task
+  .get(getTask)
+  .put(updateTask)
+  .delete(deleteTask);
 
-// Special endpoints
-router.patch('/:id/toggle', toggleTask);        // PATCH /api/tasks/:id/toggle - toggle done status
-router.patch('/:id/status', updateTaskStatus);  // PATCH /api/tasks/:id/status - update status
-router.post('/:id/sync-calendar', syncTaskToCalendar);  // POST /api/tasks/:id/sync-calendar - sync to calendar
+// Task-level operations
+router.patch('/:id/toggle',       toggleTask);
+router.patch('/:id/status',       updateTaskStatus);
+router.post ('/:id/sync-calendar', syncTaskToCalendar);
 
 // Calendar integration
-router.get('/calendar/events', getCalendarEvents);      // GET /api/tasks/calendar/events - fetch calendar events
-router.get('/calendar/stats', getCalendarStats);        // GET /api/tasks/calendar/stats - get productivity stats
+router.get  ('/calendar/events',             getCalendarEvents);
+router.get  ('/calendar/stats',              getCalendarStats);
+router.post ('/calendar/sync-from-calendar', syncFromCalendar);  // ← NEW (2-way sync)
 
 export default router;
