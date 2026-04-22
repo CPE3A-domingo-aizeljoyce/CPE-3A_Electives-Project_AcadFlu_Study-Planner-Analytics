@@ -1,81 +1,77 @@
-import axios from 'axios';
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-// FIXED: was hardcoded 'http://localhost:5000' — breaks in production
-// Add to your frontend .env: VITE_API_URL=http://localhost:5000
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/tasks/`;
-
-const getConfig = () => {
+function authHeader() {
   const token = localStorage.getItem('token');
-  return {
-    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-  };
-};
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
+async function handleResponse(res) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Request failed');
+  return data;
+}
+
+// GET /api/tasks
 export const fetchTasks = async () => {
-  const token = localStorage.getItem('token');   
-  const response = await axios.get(`${API_BASE}/api/tasks`, {
-    headers: { 
-      Authorization: `Bearer ${token}` 
-    }
+  const res = await fetch(`${BASE}/api/tasks`, {
+    headers: authHeader(),
   });
-  
-  return response.data;
+  return handleResponse(res);
 };
 
-export const fetchTask = async (id) => {
-  const response = await axios.get(`${API_URL}${id}`, getConfig());
-  return response.data;
+// POST /api/tasks
+export const createNewTask = async (data) => {
+  const res = await fetch(`${BASE}/api/tasks`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeader() },
+    body:    JSON.stringify(data),
+  });
+  return handleResponse(res);
 };
 
-export const createNewTask = async (taskData) => {
-  const response = await axios.post(API_URL, taskData, getConfig());
-  return response.data;
+// PUT /api/tasks/:id  ← NEW
+export const updateExistingTask = async (id, data) => {
+  const res = await fetch(`${BASE}/api/tasks/${id}`, {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeader() },
+    body:    JSON.stringify(data),
+  });
+  return handleResponse(res);
 };
 
-export const updateExistingTask = async (id, taskData) => {
-  const response = await axios.put(`${API_URL}${id}`, taskData, getConfig());
-  return response.data;
-};
-
+// DELETE /api/tasks/:id
 export const deleteExistingTask = async (id) => {
-  const response = await axios.delete(`${API_URL}${id}`, getConfig());
-  return response.data;
+  const res = await fetch(`${BASE}/api/tasks/${id}`, {
+    method:  'DELETE',
+    headers: authHeader(),
+  });
+  return handleResponse(res);
 };
 
+// PATCH /api/tasks/:id/toggle
 export const toggleTaskDone = async (id) => {
-  const response = await axios.patch(`${API_URL}${id}/toggle`, {}, getConfig());
-  return response.data;
+  const res = await fetch(`${BASE}/api/tasks/${id}/toggle`, {
+    method:  'PATCH',
+    headers: authHeader(),
+  });
+  return handleResponse(res);
 };
 
+// PATCH /api/tasks/:id/status
 export const updateStatusTask = async (id, status) => {
-  const response = await axios.patch(`${API_URL}${id}/status`, { status }, getConfig());
-  return response.data;
-};
-
-export const syncTaskToCalendar = async (taskId) => {
-  const response = await axios.post(`${API_URL}${taskId}/sync-calendar`, {}, getConfig());
-  return response.data;
-};
-
-export const fetchCalendarEvents = async (startDate, endDate) => {
-  const response = await axios.get(`${API_URL}calendar/events`, {
-    ...getConfig(),
-    params: {
-      startDate: startDate.toISOString(),
-      endDate:   endDate.toISOString(),
-    },
+  const res = await fetch(`${BASE}/api/tasks/${id}/status`, {
+    method:  'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeader() },
+    body:    JSON.stringify({ status }),
   });
-  return response.data;
+  return handleResponse(res);
 };
 
-export const fetchCalendarStats = async (startDate, endDate) => {
-  const response = await axios.get(`${API_URL}calendar/stats`, {
-    ...getConfig(),
-    params: {
-      startDate: startDate.toISOString(),
-      endDate:   endDate.toISOString(),
-    },
+// POST /api/tasks/:id/sync-calendar  ← NEW
+export const syncTaskToCalendar = async (id) => {
+  const res = await fetch(`${BASE}/api/tasks/${id}/sync-calendar`, {
+    method:  'POST',
+    headers: authHeader(),
   });
-  return response.data;
+  return handleResponse(res);
 };

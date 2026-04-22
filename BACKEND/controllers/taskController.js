@@ -1,344 +1,260 @@
 import Task from '../models/Task.js';
-import User from '../models/User.js';
 import { google } from 'googleapis';
-import Goal from '../models/goalModel.js';
 import { checkAndAwardAchievements } from '../utils/achievementService.js';
+import {
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+  setEventDoneStatus,
+  getOAuth2Client,
+} from '../utils/googleCalendarService.js';
 
 const calendar = google.calendar('v3');
 
-// ─── Google Calendar Helpers ──────────────────────────────────────────────────
+// ─── CRUD ─────────────────────────────────────────────────────────────────────
 
-async function getOAuth2Client(userId) {
-  const user = await User.findById(userId);
-
-  if (!user || !user.googleRefreshToken) {
-    throw new Error('User not connected to Google Calendar');
-  }
-
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.SERVER_URL + '/api/auth/google/callback'
-  );
-
-  oauth2Client.setCredentials({
-    refresh_token: user.googleRefreshToken,
-    access_token:  user.googleAccessToken,
-    expiry_date:   user.googleTokenExpiry,
-  });
-
-  if (user.googleTokenExpiry && new Date() > new Date(user.googleTokenExpiry)) {
-    const { credentials } = await oauth2Client.refreshAccessToken();
-    user.googleAccessToken = credentials.access_token;
-    user.googleTokenExpiry = credentials.expiry_date;
-    await user.save();
-    oauth2Client.setCredentials({
-      refresh_token: user.googleRefreshToken,
-      access_token:  credentials.access_token,
-      expiry_date:   credentials.expiry_date,
-    });
-  }
-
-  return oauth2Client;
-}
-
-function getCalendarColorFromPriority(priority) {
-  const colorMap = {
-    high:   '11',
-    medium: '5',
-    low:    '8',
-  };
-  return colorMap[priority] || '8';
-}
-
-async function syncTaskToCalendarInternal(userId, task) {
-  try {
-    const auth    = await getOAuth2Client(userId);
-    const dateStr = task.date.toISOString().split('T')[0];
-
-    const eventData = {
-      summary:     task.title,
-      description: `Subject: ${task.subject}\nPriority: ${task.priority}${task.description ? '\n' + task.description : ''}`,
-      start: {
-        dateTime: `${dateStr}T${task.startTime}:00`,
-        timeZone: 'Asia/Manila',
-      },
-      end: {
-        dateTime: `${dateStr}T${task.endTime}:00`,
-        timeZone: 'Asia/Manila',
-      },
-      colorId:      getCalendarColorFromPriority(task.priority),
-      transparency: task.done ? 'transparent' : 'opaque',
-    };
-
-    let event;
-
-    if (task.googleEventId) {
-      event = await calendar.events.update({
-        auth,
-        calendarId: 'primary',
-        eventId:    task.googleEventId,
-        resource:   eventData,
-      });
-    } else {
-      event = await calendar.events.insert({
-        auth,
-        calendarId: 'primary',
-        resource:   eventData,
-      });
-    }
-
-    return event.data.id;
-  } catch (error) {
-    console.error('Error syncing task to calendar:', error);
-    throw new Error(`Failed to sync task to calendar: ${error.message}`);
-  }
-}
-
-async function removeTaskFromCalendarInternal(userId, googleEventId) {
-  try {
-    if (!googleEventId) return;
-    const auth = await getOAuth2Client(userId);
-    await calendar.events.delete({
-      auth,
-      calendarId: 'primary',
-      eventId:    googleEventId,
-    });
-    return true;
-  } catch (error) {
-    console.error('Error removing task from calendar:', error);
-    return false;
-  }
-}
-
-async function markTaskDoneInCalendarInternal(userId, googleEventId, isDone) {
-  try {
-    if (!googleEventId) return;
-    const auth  = await getOAuth2Client(userId);
-    const event = await calendar.events.get({
-      auth,
-      calendarId: 'primary',
-      eventId:    googleEventId,
-    });
-    event.data.transparency = isDone ? 'transparent' : 'opaque';
-    await calendar.events.update({
-      auth,
-      calendarId: 'primary',
-      eventId:    googleEventId,
-      resource:   event.data,
-    });
-    return true;
-  } catch (error) {
-    console.error('Error marking task done in calendar:', error);
-    return false;
-  }
-}
-
-// ─── Task CRUD ────────────────────────────────────────────────────────────────
-
-// CREATE TASK
+// POST /api/tasks
 export const createTask = async (req, res) => {
   try {
-    const { title, subject, date, startTime, endTime, priority, description, syncToCalendar } = req.body;
+    const {
+      title, subject, date, startTime, endTime,
+      priority, description, syncToCalendar,
+    } = req.body;
 
-    if (!title || !subject || !date || !startTime || !endTime) {
-      return res.status(400).json({ message: 'Missing required fields' });
-    }
+    if (!title || !subject || !date || !startTime || !endTime)
+      return res.status(400).json({ message: 'Missing required fields.' });
 
-    if (endTime <= startTime) {
+    if (endTime <= startTime)
       return res.status(400).json({ message: 'End time must be after start time.' });
-    }
 
     const task = await Task.create({
-      user:        req.user.id,
-      title,
-      subject,
-      date:        new Date(date),
+      user:           req.user.id,
+      title:          title.trim(),
+      subject:        subject.trim(),
+      date:           new Date(date),
       startTime,
       endTime,
-      priority:    priority || 'medium',
-      status:      'todo',
-      done:        false,
-      description: description || '',
+      priority:       priority || 'medium',
+      status:         'todo',
+      done:           false,
+      description:    description?.trim() || '',
+      calendarSynced: false,   // ← always start as false
     });
 
+    console.log(`[Tasks] Created task "${task.title}" for user ${req.user.id}`);
+    console.log(`[Tasks] syncToCalendar=${syncToCalendar}, hasRefreshToken=${!!req.user.googleRefreshToken}`);
+
+    // ── Calendar sync ─────────────────────────────────────────────────────────
     if (syncToCalendar && req.user.googleRefreshToken) {
       try {
-        const googleEventId = await syncTaskToCalendarInternal(req.user.id, task);
+        const googleEventId = await createCalendarEvent(req.user.id, task);
         task.googleEventId  = googleEventId;
+        task.calendarSynced = true;   // ✅ only set true when event actually created
         await task.save();
-      } catch (calendarError) {
-        console.warn('Failed to sync task to calendar:', calendarError.message);
+        console.log(`[Tasks] Calendar sync SUCCESS — eventId: ${googleEventId}`);
+      } catch (calErr) {
+        // ✅ Task still saves, calendarSynced stays false
+        task.calendarSynced = false;
+        await task.save();
+        console.warn(`[Tasks] Calendar sync FAILED: ${calErr.message}`);
       }
+    } else if (syncToCalendar && !req.user.googleRefreshToken) {
+      console.warn(`[Tasks] syncToCalendar=true but user has no Google refresh token — skipping`);
     }
 
     res.status(201).json(task);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
+  } catch (err) {
+    console.error('[Tasks] createTask error:', err.message);
+    res.status(400).json({ message: err.message });
   }
 };
 
-// GET ALL TASKS
+// GET /api/tasks
 export const getTasks = async (req, res) => {
   try {
     const tasks = await Task.find({ user: req.user.id }).sort({ date: 1, startTime: 1 });
     res.status(200).json(tasks);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 };
 
-// GET SINGLE TASK
+// GET /api/tasks/:id
 export const getTask = async (req, res) => {
   try {
     const task = await Task.findById(req.params.id);
-
-    if (!task) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
-    if (task.user.toString() !== req.user.id) {
-      return res.status(401).json({ message: 'Not authorized to access this task' });
-    }
-
+    if (!task)
+      return res.status(404).json({ message: 'Task not found.' });
+    if (task.user.toString() !== req.user.id)
+      return res.status(401).json({ message: 'Not authorized to access this task.' });
     res.status(200).json(task);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 };
 
+// PUT /api/tasks/:id  ← FIXED: now syncs calendar + checks ownership
+export const updateTask = async (req, res) => {
+  try {
+    const task = await Task.findById(req.params.id);
+    if (!task)
+      return res.status(404).json({ message: 'Task not found.' });
+    if (task.user.toString() !== req.user.id)
+      return res.status(401).json({ message: 'Not authorized to update this task.' });
 
+    const { syncToCalendar, ...fields } = req.body;
 
-// DELETE TASK
+    // Apply allowed field updates
+    const allowed = ['title', 'subject', 'date', 'startTime', 'endTime', 'priority', 'description', 'status', 'done'];
+    for (const key of allowed) {
+      if (fields[key] !== undefined) {
+        task[key] = key === 'date' ? new Date(fields[key]) : fields[key];
+      }
+    }
+
+    // ── Calendar sync on edit ──────────────────────────────────────────────────
+    if (req.user.googleRefreshToken) {
+      // sync if: explicitly true, OR task was already synced and user didn't say false
+      const shouldSync = syncToCalendar === true
+        || (syncToCalendar === undefined && task.calendarSynced);
+
+      if (shouldSync) {
+        try {
+          const googleEventId = await updateCalendarEvent(req.user.id, task.googleEventId, task);
+          task.googleEventId  = googleEventId;
+          task.calendarSynced = true;
+        } catch (calErr) {
+          console.warn(`[Tasks] Calendar update failed on edit: ${calErr.message}`);
+          // Task still saves to DB
+        }
+      } else if (syncToCalendar === false && task.googleEventId) {
+        // User explicitly unchecked "Sync" → remove from Calendar
+        try {
+          await deleteCalendarEvent(req.user.id, task.googleEventId);
+          task.googleEventId  = null;
+          task.calendarSynced = false;
+        } catch (calErr) {
+          console.warn(`[Tasks] Calendar removal failed: ${calErr.message}`);
+        }
+      }
+    }
+
+    await task.save();
+    res.status(200).json(task);
+  } catch (err) {
+    console.error('[Tasks] updateTask:', err.message);
+    res.status(500).json({ message: 'Failed to update task.' });
+  }
+};
+
+// DELETE /api/tasks/:id
 export const deleteTask = async (req, res) => {
   try {
     const task = await Task.findById(req.params.id);
+    if (!task)
+      return res.status(404).json({ message: 'Task not found.' });
+    if (task.user.toString() !== req.user.id)
+      return res.status(401).json({ message: 'Not authorized to delete this task.' });
 
-    if (!task) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
-    if (task.user.toString() !== req.user.id) {
-      return res.status(401).json({ message: 'Not authorized to delete this task' });
-    }
-
+    // Remove from Calendar first (non-blocking)
     if (task.googleEventId && req.user.googleRefreshToken) {
       try {
-        await removeTaskFromCalendarInternal(req.user.id, task.googleEventId);
-      } catch (calendarError) {
-        console.warn('Failed to remove task from calendar:', calendarError.message);
+        await deleteCalendarEvent(req.user.id, task.googleEventId);
+      } catch (calErr) {
+        console.warn(`[Tasks] Calendar delete failed: ${calErr.message}`);
       }
     }
 
     await Task.findByIdAndDelete(req.params.id);
-    res.status(200).json({ message: 'Task deleted successfully' });
-  } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(200).json({ message: 'Task deleted successfully.' });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 };
 
-// TOGGLE TASK COMPLETION
+// PATCH /api/tasks/:id/toggle
 export const toggleTask = async (req, res) => {
   try {
     let task = await Task.findById(req.params.id);
-
-    if (!task) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
-    if (task.user.toString() !== req.user.id) {
-      return res.status(401).json({ message: 'Not authorized to update this task' });
-    }
+    if (!task)
+      return res.status(404).json({ message: 'Task not found.' });
+    if (task.user.toString() !== req.user.id)
+      return res.status(401).json({ message: 'Not authorized to update this task.' });
 
     task.done   = !task.done;
     task.status = task.done ? 'done' : 'todo';
+    task        = await task.save();
 
-    task = await task.save();
-
+    // Update Calendar transparency (non-blocking)
     if (task.googleEventId && req.user.googleRefreshToken) {
       try {
-        await markTaskDoneInCalendarInternal(req.user.id, task.googleEventId, task.done);
-      } catch (calendarError) {
-        console.warn('Failed to update task in calendar:', calendarError.message);
+        await setEventDoneStatus(req.user.id, task.googleEventId, task.done);
+      } catch (calErr) {
+        console.warn(`[Tasks] Calendar transparency update failed: ${calErr.message}`);
       }
     }
 
-    // ── Achievement hook: fire only when task was just marked as done ─────────
+    // Achievement hook
     if (task.done) {
       checkAndAwardAchievements(req.user.id)
-        .catch(err => console.error('[Achievements] toggleTask hook error:', err.message));
+        .catch(err => console.error('[Achievements] toggleTask error:', err.message));
     }
 
     res.status(200).json(task);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 };
 
-// @desc    Update task status
-// @route   PUT /api/tasks/:id/status
-// @access  Private
+// PATCH /api/tasks/:id/status  (Kanban drag-and-drop)
 export const updateTaskStatus = async (req, res) => {
   try {
-    const { id } = req.params;
     const { status } = req.body;
-
-   const task = await Task.findByIdAndUpdate(id, { status }, { new: true });
-
-    if (!task) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
+    const task = await Task.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    if (!task) return res.status(404).json({ message: 'Task not found.' });
     res.status(200).json(task);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to update task status" });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update task status.' });
   }
 };
 
-// ─── Calendar Integration ─────────────────────────────────────────────────────
+// ─── Calendar endpoints ───────────────────────────────────────────────────────
 
-// SYNC SPECIFIC TASK TO CALENDAR
+// POST /api/tasks/:id/sync-calendar  (manual sync button)
 export const syncTaskToCalendar = async (req, res) => {
   try {
     const task = await Task.findById(req.params.id);
+    if (!task)
+      return res.status(404).json({ message: 'Task not found.' });
+    if (task.user.toString() !== req.user.id)
+      return res.status(401).json({ message: 'Not authorized.' });
+    if (!req.user.googleRefreshToken)
+      return res.status(400).json({
+        message: 'Please sign in with Google first to use Calendar sync.',
+      });
 
-    if (!task) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
-    if (task.user.toString() !== req.user.id) {
-      return res.status(401).json({ message: 'Not authorized to update this task' });
-    }
-
-    if (!req.user.googleRefreshToken) {
-      return res.status(400).json({ message: 'User not connected to Google Calendar' });
-    }
-
-    const googleEventId = await syncTaskToCalendarInternal(req.user.id, task);
+    const googleEventId = await updateCalendarEvent(req.user.id, task.googleEventId, task);
     task.googleEventId  = googleEventId;
+    task.calendarSynced = true;
     await task.save();
 
-    res.status(200).json({ message: 'Task synced to calendar', task });
-  } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(200).json({ message: 'Task synced to Google Calendar.', task });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 };
 
-// GET CALENDAR EVENTS
+// GET /api/tasks/calendar/events
 export const getCalendarEvents = async (req, res) => {
   try {
-    if (!req.user.googleRefreshToken) {
-      return res.status(400).json({ message: 'User not connected to Google Calendar' });
-    }
+    if (!req.user.googleRefreshToken)
+      return res.status(400).json({ message: 'User not connected to Google Calendar.' });
 
     const { startDate, endDate } = req.query;
+    if (!startDate || !endDate)
+      return res.status(400).json({ message: 'startDate and endDate are required.' });
 
-    if (!startDate || !endDate) {
-      return res.status(400).json({ message: 'startDate and endDate query params required' });
-    }
-
-    const auth = await getOAuth2Client(req.user.id);
-
+    const auth   = await getOAuth2Client(req.user.id);
     const events = await calendar.events.list({
       auth,
       calendarId:   'primary',
@@ -350,26 +266,22 @@ export const getCalendarEvents = async (req, res) => {
     });
 
     res.status(200).json(events.data.items || []);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 };
 
-// GET CALENDAR STATS
+// GET /api/tasks/calendar/stats
 export const getCalendarStats = async (req, res) => {
   try {
-    if (!req.user.googleRefreshToken) {
-      return res.status(400).json({ message: 'User not connected to Google Calendar' });
-    }
+    if (!req.user.googleRefreshToken)
+      return res.status(400).json({ message: 'User not connected to Google Calendar.' });
 
     const { startDate, endDate } = req.query;
+    if (!startDate || !endDate)
+      return res.status(400).json({ message: 'startDate and endDate are required.' });
 
-    if (!startDate || !endDate) {
-      return res.status(400).json({ message: 'startDate and endDate query params required' });
-    }
-
-    const auth = await getOAuth2Client(req.user.id);
-
+    const auth   = await getOAuth2Client(req.user.id);
     const events = await calendar.events.list({
       auth,
       calendarId:   'primary',
@@ -381,7 +293,6 @@ export const getCalendarStats = async (req, res) => {
     });
 
     const items = events.data.items || [];
-
     const stats = {
       totalEvents:     items.length,
       completedEvents: items.filter(e => e.transparency === 'transparent').length,
@@ -392,35 +303,14 @@ export const getCalendarStats = async (req, res) => {
     items.forEach(event => {
       const color          = event.colorId || '8';
       stats.byColor[color] = (stats.byColor[color] || 0) + 1;
-
-      if (event.start.dateTime && event.end.dateTime) {
-        const start          = new Date(event.start.dateTime);
-        const end            = new Date(event.end.dateTime);
-        stats.totalDuration += (end - start) / (1000 * 60);
+      if (event.start?.dateTime && event.end?.dateTime) {
+        stats.totalDuration +=
+          (new Date(event.end.dateTime) - new Date(event.start.dateTime)) / (1000 * 60);
       }
     });
 
     res.status(200).json(stats);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-};
-
-// @desc    Update task details (Edit)
-// @route   PUT /api/tasks/:id
-// @access  Private
-export const updateTask = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const updatedTask = await Task.findByIdAndUpdate(id, req.body, { new: true });
-
-    if (!updatedTask) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
-    res.status(200).json(updatedTask);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to update task details" });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 };

@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Brain, CheckCircle2, XCircle } from 'lucide-react';
 
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export function AuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate       = useNavigate();
-  const [status, setStatus]   = useState('loading');
+  const [status,  setStatus]  = useState('loading');
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -20,14 +22,36 @@ export function AuthCallback() {
       return;
     }
 
+    // ✅ FIX: Save token first, then fetch user so hasGoogleCalendar is stored
     localStorage.setItem('token', token);
-    setStatus('success');
-    setMessage(
-      verified === 'true'
-        ? 'Email verified! Taking you to your dashboard…'
-        : 'Signed in! Taking you to your dashboard…'
-    );
-    setTimeout(() => navigate('/app', { replace: true }), 1800);
+
+    // Fetch full user object — this includes hasGoogleCalendar from backend
+    fetch(`${API}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          console.log('[AuthCallback] User saved to localStorage:', {
+            email:            data.user.email,
+            hasGoogleCalendar: data.user.hasGoogleCalendar,
+          });
+        }
+      })
+      .catch(err => {
+        // Non-fatal: app still works, just Calendar toggle may not show enabled
+        console.warn('[AuthCallback] Could not fetch user profile:', err.message);
+      })
+      .finally(() => {
+        setStatus('success');
+        setMessage(
+          verified === 'true'
+            ? 'Email verified! Taking you to your dashboard…'
+            : 'Signed in with Google! Taking you to your dashboard…'
+        );
+        setTimeout(() => navigate('/app', { replace: true }), 1800);
+      });
   }, []);
 
   return (
@@ -40,7 +64,7 @@ export function AuthCallback() {
           className="w-12 h-12 rounded-xl flex items-center justify-center"
           style={{
             background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            boxShadow: '0 0 24px rgba(99,102,241,0.4)',
+            boxShadow:  '0 0 24px rgba(99,102,241,0.4)',
           }}
         >
           <Brain className="w-6 h-6 text-white" />
@@ -60,7 +84,7 @@ export function AuthCallback() {
           className="text-sm"
           style={{ color: status === 'error' ? '#f87171' : '#94a3b8' }}
         >
-          {message || 'Please wait…'}
+          {message || 'Completing sign-in…'}
         </p>
       </div>
     </div>

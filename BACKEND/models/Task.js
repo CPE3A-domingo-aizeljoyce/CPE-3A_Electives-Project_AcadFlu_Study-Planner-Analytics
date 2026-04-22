@@ -2,57 +2,61 @@ import mongoose from 'mongoose';
 
 const taskSchema = new mongoose.Schema({
   user: {
-    type: mongoose.Schema.Types.ObjectId,
+    type:     mongoose.Schema.Types.ObjectId,
     required: true,
-    ref: 'User',
+    ref:      'User',
   },
   title: {
-    type: String,
-    required: [true, 'Task title is required'],
-    trim: true,
-    minlength: [1, 'Title cannot be empty'],
+    type:      String,
+    required:  [true, 'Task title is required'],
+    trim:      true,
+    minlength: [1,   'Title cannot be empty'],
     maxlength: [200, 'Title cannot exceed 200 characters'],
   },
   subject: {
-    type: String,
+    type:     String,
     required: [true, 'Subject is required'],
-    trim: true,
+    trim:     true,
   },
   date: {
-    type: Date,
+    type:     Date,
     required: [true, 'Task date is required'],
   },
   startTime: {
-    type: String,
+    type:     String,
     required: [true, 'Start time is required'],
-    match: [/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Start time must be in HH:mm format'],
+    match:    [/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Start time must be in HH:mm format'],
   },
   endTime: {
-    type: String,
+    type:     String,
     required: [true, 'End time is required'],
-    match: [/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'End time must be in HH:mm format'],
+    match:    [/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'End time must be in HH:mm format'],
   },
   priority: {
-    type: String,
-    enum: ['high', 'medium', 'low'],
+    type:    String,
+    enum:    ['high', 'medium', 'low'],
     default: 'medium',
   },
-  
   status: {
-    type: String,
-    enum: ['todo', 'in-progress', 'done'],
+    type:    String,
+    enum:    ['todo', 'in-progress', 'done'],
     default: 'todo',
   },
   done: {
-    type: Boolean,
+    type:    Boolean,
     default: false,
   },
   googleEventId: {
-    type: String,
+    type:    String,
     default: null,
   },
+  // ✅ NEW — true when this task has an active linked event in Google Calendar
+  calendarSynced: {
+    type:    Boolean,
+    default: false,
+  },
   description: {
-    type: String,
+    type:    String,
     default: '',
   },
 }, { timestamps: true });

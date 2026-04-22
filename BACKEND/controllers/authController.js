@@ -227,44 +227,80 @@ export const googleCallback = async (req, res) => {
   try {
     const { code, error } = req.query;
 
-    if (error || !code)
+    if (error || !code) {
+      console.warn('[Google OAuth] Callback cancelled or missing code:', error);
       return res.redirect(`${process.env.CLIENT_URL}/login?error=google_cancelled`);
+    }
 
+    console.log('[Google OAuth] Exchanging code for tokens…');
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
+
+    console.log('[Google OAuth] Tokens received:', {
+      hasAccessToken:  !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token,
+      expiryDate:      tokens.expiry_date,
+      scope:           tokens.scope,
+    });
 
     const oauth2   = google.oauth2({ version: 'v2', auth: oauth2Client });
     const { data } = await oauth2.userinfo.get();
     const { id: googleId, email, name, picture } = data;
 
-    if (!email)
-      return res.redirect(`${process.env.CLIENT_URL}/login?error=no_email`);
+    console.log('[Google OAuth] User info fetched:', { googleId, email, name });
 
+    if (!email) {
+      console.error('[Google OAuth] No email returned from Google');
+      return res.redirect(`${process.env.CLIENT_URL}/login?error=no_email`);
+    }
+
+    // ── Find or create user ────────────────────────────────────────────────────
     let user = await User.findOne({ googleId });
+    let isNewLink = false;
 
     if (!user) {
       user = await User.findOne({ email });
       if (user) {
+        // ✅ Link existing email/password account to this Google account
+        console.log('[Google OAuth] Linking Google to existing email account:', email);
         user.googleId   = googleId;
         user.avatar     = user.avatar || picture;
         user.isVerified = true;
+        isNewLink = true;
       } else {
+        // ✅ Brand new user via Google
+        console.log('[Google OAuth] Creating new Google user:', email);
         user = new User({ name, email, googleId, avatar: picture, isVerified: true });
       }
+    } else {
+      console.log('[Google OAuth] Existing Google user found:', email);
     }
 
+    // ── Save Google tokens ────────────────────────────────────────────────────
     user.googleAccessToken = tokens.access_token;
     user.googleTokenExpiry = tokens.expiry_date;
+
     if (tokens.refresh_token) {
+      console.log('[Google OAuth] Saving new refresh token for:', email);
       user.googleRefreshToken = tokens.refresh_token;
+    } else if (!user.googleRefreshToken) {
+      // ⚠️ No refresh token and none saved — Calendar sync will fail
+      console.warn('[Google OAuth] No refresh token received and none saved for:', email,
+        '— User may need to revoke Google access and re-authorize.');
+    } else {
+      console.log('[Google OAuth] Using existing saved refresh token for:', email);
     }
+
     await user.save();
+    console.log('[Google OAuth] User saved. hasGoogleCalendar:', !!user.googleRefreshToken);
 
     const jwtToken = generateToken(user._id);
-    res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${jwtToken}&verified=true`);
+    const redirectUrl = `${process.env.CLIENT_URL}/auth/callback?token=${jwtToken}&verified=true`;
+    console.log('[Google OAuth] Redirecting to:', redirectUrl.replace(jwtToken, '[JWT]'));
+    res.redirect(redirectUrl);
 
   } catch (err) {
-    console.error('Google callback error:', err);
+    console.error('[Google OAuth] Callback error:', err.message);
     res.redirect(`${process.env.CLIENT_URL}/login?error=google_failed`);
   }
 };

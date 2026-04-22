@@ -67,29 +67,95 @@ function Field({ label, children }) {
   );
 }
 
+// ── Reusable sync toggle row ──────────────────────────────────────────────────
+function SyncToggle({ hasGoogleCalendar, synced, value, onChange, existingSynced }) {
+  const { colors } = useAppearance();
+  const isOn = value && hasGoogleCalendar;
+  return (
+    <div
+      className="flex items-center justify-between rounded-xl px-4 py-3"
+      style={{ background: colors.card2, border: `1px solid ${colors.border}` }}
+    >
+      <div className="flex items-center gap-2.5">
+        <CalendarDays
+          className="w-4 h-4 shrink-0"
+          style={{ color: hasGoogleCalendar ? (isOn ? '#22c55e' : colors.textMuted) : '#f59e0b' }}
+        />
+        <div>
+          <p className="text-xs" style={{ fontWeight: 600, color: colors.text }}>
+            Sync with Google Calendar
+          </p>
+          {hasGoogleCalendar ? (
+            existingSynced
+              ? <p className="text-xs mt-0.5" style={{ color: '#22c55e' }}>Currently synced ✓</p>
+              : null
+          ) : (
+            <p className="text-xs mt-0.5" style={{ color: '#f59e0b' }}>
+              Sign in with Google to enable Calendar sync
+            </p>
+          )}
+        </div>
+      </div>
+      {/* Toggle switch */}
+      <button
+        type="button"
+        disabled={!hasGoogleCalendar}
+        onClick={() => hasGoogleCalendar && onChange(!value)}
+        className="relative w-10 h-5 rounded-full transition-colors shrink-0"
+        style={{
+          background: isOn ? '#22c55e' : colors.border,
+          opacity:    hasGoogleCalendar ? 1 : 0.4,
+          cursor:     hasGoogleCalendar ? 'pointer' : 'not-allowed',
+        }}
+        title={!hasGoogleCalendar ? 'Connect Google to enable Calendar sync' : (isOn ? 'Disable sync' : 'Enable sync')}
+      >
+        <span
+          className="absolute top-0.5 rounded-full transition-all duration-200"
+          style={{
+            width:      16,
+            height:     16,
+            background: '#fff',
+            left:       isOn ? 'calc(100% - 18px)' : 2,
+          }}
+        />
+      </button>
+    </div>
+  );
+}
+
+// ── Add Task Form ─────────────────────────────────────────────────────────────
 function AddTaskForm({ defaultDate, onAdd, onClose }) {
+  // ✅ FIX: Read hasGoogleCalendar from context (live state), not stale localStorage
+  const { hasGoogleCalendar } = useTasks();
 
-  const [form, setForm]               = useState({ title: '', subject: 'Mathematics', date: defaultDate, startTime: '09:00', endTime: '10:00', priority: 'medium' });
-  const [error, setError]             = useState('');
+  const [form, setForm] = useState({
+    title:          '',
+    subject:        'Mathematics',
+    date:           defaultDate,
+    startTime:      '09:00',
+    endTime:        '10:00',
+    priority:       'medium',
+    description:    '',
+    syncToCalendar: hasGoogleCalendar, // default ON if connected
+  });
+  const [error,         setError]         = useState('');
   const [customSubject, setCustomSubject] = useState('');
-  const titleRef                      = useRef(null);
-  const { colors, accent }            = useAppearance();
+  const titleRef                          = useRef(null);
+  const { colors, accent }                = useAppearance();
 
-  useEffect(() => { 
-    titleRef.current?.focus(); 
-  }, []);
+  useEffect(() => { titleRef.current?.focus(); }, []);
 
   const submit = () => {
-    if (!form.title.trim())             { setError('Please enter a task title.');           return; }
-    if (form.date < TODAY)              { setError('Cannot add tasks to past dates.');       return; }
-    if (form.endTime <= form.startTime) { setError('End time must be after start time.');   return; }
-    const finalSubject = form.subject === 'Others' ? customSubject.trim() : form.subject;
-    onAdd({ ...form, subject: finalSubject || 'Others' });
+    if (!form.title.trim())             { setError('Please enter a task title.');         return; }
+    if (form.date < TODAY)              { setError('Cannot add tasks to past dates.');     return; }
+    if (form.endTime <= form.startTime) { setError('End time must be after start time.'); return; }
+    const finalSubject = form.subject === 'Others' ? (customSubject.trim() || 'Others') : form.subject;
+    onAdd({ ...form, subject: finalSubject });
     onClose();
   };
 
   const inputStyle = { background: colors.card2, border: `1px solid ${colors.border}`, color: colors.text, colorScheme: colors.inputScheme };
-  const cls        = "w-full rounded-xl px-3.5 py-2.5 text-sm outline-none";
+  const cls        = 'w-full rounded-xl px-3.5 py-2.5 text-sm outline-none';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -97,22 +163,28 @@ function AddTaskForm({ defaultDate, onAdd, onClose }) {
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-lg rounded-3xl p-6 flex flex-col gap-5"
         style={{ background: colors.card, border: `1px solid rgba(${accent.rgb},0.35)`, boxShadow: '0 32px 64px rgba(0,0,0,0.5)' }}>
+
         <div className="flex items-center justify-between">
           <h2 className="text-base" style={{ fontWeight: 700, color: colors.text }}>New Task</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: colors.card2, color: colors.textMuted }}>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center"
+            style={{ background: colors.card2, color: colors.textMuted }}>
             <X className="w-4 h-4" />
           </button>
         </div>
+
         <div className="flex flex-col gap-4">
           <Field label="Task title">
             <>
-              <input ref={titleRef} className={cls} style={{ ...inputStyle, border: error ? '1px solid #ef4444' : `1px solid ${colors.border}` }}
-                placeholder="e.g. Read chapter 7..." value={form.title}
+              <input ref={titleRef} className={cls}
+                style={{ ...inputStyle, border: error ? '1px solid #ef4444' : `1px solid ${colors.border}` }}
+                placeholder="e.g. Read chapter 7..."
+                value={form.title}
                 onChange={e => { setForm(f => ({ ...f, title: e.target.value })); setError(''); }}
                 onKeyDown={e => e.key === 'Enter' && submit()} />
               {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
             </>
           </Field>
+
           <div className="grid grid-cols-2 gap-4">
             <Field label="Subject">
               <select className={cls} style={inputStyle} value={form.subject}
@@ -126,26 +198,39 @@ function AddTaskForm({ defaultDate, onAdd, onClose }) {
               )}
             </Field>
             <Field label="Priority">
-              <select className={cls} style={inputStyle} value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
+              <select className={cls} style={inputStyle} value={form.priority}
+                onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
                 <option value="high">High</option>
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
               </select>
             </Field>
           </div>
+
           <Field label="Date">
             <input type="date" className={cls} style={inputStyle} value={form.date} min={TODAY}
               onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
           </Field>
+
           <div className="grid grid-cols-2 gap-4">
             <Field label="Start time">
-              <input type="time" className={cls} style={inputStyle} value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} />
+              <input type="time" className={cls} style={inputStyle} value={form.startTime}
+                onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} />
             </Field>
             <Field label="End time">
-              <input type="time" className={cls} style={inputStyle} value={form.endTime} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} />
+              <input type="time" className={cls} style={inputStyle} value={form.endTime}
+                onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} />
             </Field>
           </div>
+
+          <SyncToggle
+            hasGoogleCalendar={hasGoogleCalendar}
+            value={form.syncToCalendar}
+            onChange={v => setForm(f => ({ ...f, syncToCalendar: v }))}
+            existingSynced={false}
+          />
         </div>
+
         <div className="flex gap-3 pt-1">
           <button onClick={submit} className="flex-1 py-2.5 rounded-xl text-white text-sm hover:opacity-90 active:scale-95"
             style={{ background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, fontWeight: 600, boxShadow: `0 0 20px rgba(${accent.rgb},0.35)` }}>
@@ -161,7 +246,138 @@ function AddTaskForm({ defaultDate, onAdd, onClose }) {
   );
 }
 
-function TaskRow({ task, onToggle, onRemove }) {
+// ── Edit Task Form ────────────────────────────────────────────────────────────
+function EditTaskForm({ task, onSave, onClose }) {
+  const { hasGoogleCalendar } = useTasks();
+
+  const initSubject = SUBJECTS.includes(task.subject) ? task.subject : 'Others';
+  const [selectedSubject, setSelectedSubject] = useState(initSubject);
+  const [customSubject,   setCustomSubject]   = useState(SUBJECTS.includes(task.subject) ? '' : task.subject);
+  const [form, setForm] = useState({
+    title:          task.title,
+    date:           task.date,
+    startTime:      task.startTime,
+    endTime:        task.endTime,
+    priority:       task.priority,
+    description:    task.description || '',
+    syncToCalendar: !!(task.calendarSynced && hasGoogleCalendar),
+  });
+  const [error,  setError]  = useState('');
+  const [saving, setSaving] = useState(false);
+  const { colors, accent }  = useAppearance();
+
+  const submit = async () => {
+    if (!form.title.trim())             { setError('Please enter a task title.');         return; }
+    if (form.endTime <= form.startTime) { setError('End time must be after start time.'); return; }
+    const finalSubject = selectedSubject === 'Others'
+      ? (customSubject.trim() || 'Others')
+      : selectedSubject;
+    setSaving(true);
+    try {
+      await onSave(task.id, { ...form, subject: finalSubject });
+      onClose();
+    } catch {
+      setError('Failed to save. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputStyle = { background: colors.card2, border: `1px solid ${colors.border}`, color: colors.text, colorScheme: colors.inputScheme };
+  const cls        = 'w-full rounded-xl px-3.5 py-2.5 text-sm outline-none';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="w-full max-w-lg rounded-3xl p-6 flex flex-col gap-5"
+        style={{ background: colors.card, border: `1px solid rgba(${accent.rgb},0.35)`, boxShadow: '0 32px 64px rgba(0,0,0,0.5)' }}>
+
+        <div className="flex items-center justify-between">
+          <h2 className="text-base" style={{ fontWeight: 700, color: colors.text }}>Edit Task</h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center"
+            style={{ background: colors.card2, color: colors.textMuted }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <Field label="Task title">
+            <>
+              <input className={cls}
+                style={{ ...inputStyle, border: error ? '1px solid #ef4444' : `1px solid ${colors.border}` }}
+                placeholder="e.g. Read chapter 7..."
+                value={form.title}
+                onChange={e => { setForm(f => ({ ...f, title: e.target.value })); setError(''); }}
+                onKeyDown={e => e.key === 'Enter' && submit()} />
+              {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+            </>
+          </Field>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Subject">
+              <select className={cls} style={inputStyle} value={selectedSubject}
+                onChange={e => setSelectedSubject(e.target.value)}>
+                {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="Others">Others...</option>
+              </select>
+              {selectedSubject === 'Others' && (
+                <input className={`${cls} mt-2`} style={inputStyle} placeholder="Type subject name..."
+                  value={customSubject} onChange={e => setCustomSubject(e.target.value)} />
+              )}
+            </Field>
+            <Field label="Priority">
+              <select className={cls} style={inputStyle} value={form.priority}
+                onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </Field>
+          </div>
+
+          <Field label="Date">
+            <input type="date" className={cls} style={inputStyle} value={form.date}
+              onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Start time">
+              <input type="time" className={cls} style={inputStyle} value={form.startTime}
+                onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} />
+            </Field>
+            <Field label="End time">
+              <input type="time" className={cls} style={inputStyle} value={form.endTime}
+                onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} />
+            </Field>
+          </div>
+
+          <SyncToggle
+            hasGoogleCalendar={hasGoogleCalendar}
+            value={form.syncToCalendar}
+            onChange={v => setForm(f => ({ ...f, syncToCalendar: v }))}
+            existingSynced={!!task.calendarSynced}
+          />
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <button onClick={submit} disabled={saving}
+            className="flex-1 py-2.5 rounded-xl text-white text-sm hover:opacity-90 active:scale-95 disabled:opacity-60"
+            style={{ background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, fontWeight: 600 }}>
+            {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+          <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm"
+            style={{ background: colors.card2, border: `1px solid ${colors.border}`, color: colors.textSub }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Task Row (List view) ──────────────────────────────────────────────────────
+function TaskRow({ task, onToggle, onRemove, onEdit }) {
   const { colors, accent } = useAppearance();
   const color = SUBJECT_COLOR[task.subject] || accent.main;
   return (
@@ -181,20 +397,33 @@ function TaskRow({ task, onToggle, onRemove }) {
           <span className="flex items-center gap-1 text-xs" style={{ color: colors.textMuted }}>
             <Clock className="w-3 h-3" />{task.startTime}–{task.endTime}
           </span>
+          {/* ✅ Calendar sync indicator — only shows when ACTUALLY synced */}
+          {task.calendarSynced && (
+            <span className="flex items-center gap-1 text-xs" style={{ color: '#22c55e' }} title="Synced to Google Calendar">
+              <CalendarDays className="w-3 h-3" />cal
+            </span>
+          )}
         </div>
       </div>
       <PriorityBadge p={task.priority} />
-      <button onClick={onRemove} className="hidden sm:flex opacity-0 group-hover:opacity-100 w-7 h-7 rounded-xl items-center justify-center hover:text-red-400 hover:bg-red-400/10 transition-all shrink-0"
-        style={{ color: colors.textMuted }}>
+      <button onClick={onEdit}
+        className="hidden sm:flex opacity-0 group-hover:opacity-100 w-7 h-7 rounded-xl items-center justify-center hover:text-indigo-400 hover:bg-indigo-400/10 transition-all shrink-0"
+        style={{ color: colors.textMuted }} title="Edit task">
+        <Pencil className="w-3.5 h-3.5" />
+      </button>
+      <button onClick={onRemove}
+        className="hidden sm:flex opacity-0 group-hover:opacity-100 w-7 h-7 rounded-xl items-center justify-center hover:text-red-400 hover:bg-red-400/10 transition-all shrink-0"
+        style={{ color: colors.textMuted }} title="Delete task">
         <Trash2 className="w-3.5 h-3.5" />
       </button>
     </div>
   );
 }
 
+// ── Calendar View ─────────────────────────────────────────────────────────────
 function CalendarView({ tasks, onToggle, onRemove, onAddForDate }) {
-  const [year, setYear]         = useState(TODAY_Y);
-  const [month, setMonth]       = useState(TODAY_M - 1);
+  const [year,     setYear]     = useState(TODAY_Y);
+  const [month,    setMonth]    = useState(TODAY_M - 1);
   const [selected, setSelected] = useState(TODAY);
   const { colors, accent }      = useAppearance();
 
@@ -346,6 +575,7 @@ function CalendarView({ tasks, onToggle, onRemove, onAddForDate }) {
   );
 }
 
+// ── Kanban Card ───────────────────────────────────────────────────────────────
 function KanbanCard({ task, onMoveCol, onRemove, onToggle }) {
   const { colors, accent } = useAppearance();
   const subjectColor       = SUBJECT_COLOR[task.subject] || accent.main;
@@ -404,7 +634,7 @@ function KanbanCard({ task, onMoveCol, onRemove, onToggle }) {
 }
 
 function KanbanColumn({ col, tasks, onMoveCol, onRemove, onToggle, onAdd }) {
-  const { colors, accent } = useAppearance();
+  const { colors, accent }          = useAppearance();
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDragOver  = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setIsDragOver(true); };
@@ -462,7 +692,6 @@ function KanbanView({ tasks, onMoveCol, onRemove, onToggle, onAdd }) {
     'in-progress': tasks.filter(t => t.status === 'in-progress'),
     'done':        tasks.filter(t => t.status === 'done'),
   };
-
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '1rem', alignItems: 'start' }}>
       {KANBAN_COLS.map(col => (
@@ -508,35 +737,33 @@ function SprintBanner({ tasks, selectedSprint, onSelectSprint, sprintGoals, onUp
           <Zap className="w-3.5 h-3.5" style={{ color: accent.main }} />
           <span className="text-sm" style={{ fontWeight: 700, color: colors.text }}>Sprint View</span>
           {selectedSprint !== null && selectedSprint === CURRENT_SPRINT_NUM && (
-            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `rgba(${accent.rgb},0.13)`, color: accent.main, fontWeight: 600 }}>Active</span>
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `rgba(${accent.rgb},0.15)`, color: accent.main, fontWeight: 600 }}>Current</span>
           )}
         </div>
         <div className="flex items-center gap-1 flex-wrap">
-          <button onClick={() => { onSelectSprint(null); setEditingGoal(false); }}
-            className="px-2.5 py-1 rounded-lg text-xs transition-all"
+          <button onClick={() => onSelectSprint(null)}
+            className="text-xs px-2.5 py-1 rounded-lg transition-all"
             style={selectedSprint === null
-              ? { background: accent.main, color: '#fff', fontWeight: 600, boxShadow: `0 0 8px rgba(${accent.rgb},0.28)` }
-              : { background: colors.card2, color: colors.textMuted, fontWeight: 500 }}>
+              ? { background: accent.main, color: '#fff', fontWeight: 600 }
+              : { background: colors.card2, color: colors.textMuted, border: `1px solid ${colors.border}` }}>
             All
           </button>
           {sprintNums.map(num => (
-            <button key={num} onClick={() => { onSelectSprint(num); setEditingGoal(false); }}
-              className="px-2.5 py-1 rounded-lg text-xs transition-all"
+            <button key={num} onClick={() => onSelectSprint(num)}
+              className="text-xs px-2.5 py-1 rounded-lg transition-all"
               style={selectedSprint === num
-                ? { background: accent.main, color: '#fff', fontWeight: 600, boxShadow: `0 0 8px rgba(${accent.rgb},0.28)` }
-                : num === CURRENT_SPRINT_NUM
-                  ? { background: `rgba(${accent.rgb},0.10)`, color: accent.main, fontWeight: 600, border: `1px solid rgba(${accent.rgb},0.2)` }
-                  : { background: colors.card2, color: colors.textMuted, fontWeight: 500 }}>
-              Week {num}
+                ? { background: accent.main, color: '#fff', fontWeight: 600 }
+                : { background: colors.card2, color: colors.textMuted, border: `1px solid ${colors.border}` }}>
+              W{num}
             </button>
           ))}
         </div>
       </div>
 
-      {selectedSprint !== null && (
+      {selectedSprint !== null && range && (
         <>
-          <div className="flex items-start gap-2">
-            <Target className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: accent.main, opacity: 0.75 }} />
+          <div className="flex items-center gap-2">
+            <Target className="w-3.5 h-3.5 shrink-0" style={{ color: colors.textMuted }} />
             {editingGoal ? (
               <div className="flex-1 flex items-center gap-2 flex-wrap">
                 <input ref={goalRef} className="flex-1 text-xs rounded-lg px-2.5 py-1.5 outline-none"
@@ -628,17 +855,22 @@ function SprintBanner({ tasks, selectedSprint, onSelectSprint, sprintGoals, onUp
   );
 }
 
+// ── Main Tasks Page ───────────────────────────────────────────────────────────
 export function Tasks() {
-  const { tasks, sprintGoals, toggle, remove, addTask, moveToCol, updateGoal, loading, error } = useTasks();
+  const {
+    tasks, sprintGoals, toggle, remove, addTask, editTask,
+    moveToCol, updateGoal, loading, error,
+  } = useTasks();
 
-  const [view, setView]             = useState('list');
-  const [search, setSearch]         = useState('');
-  const [filterSubject, setFS]      = useState('All');
-  const [filterPriority, setFP]     = useState('All');
-  const [showForm, setShowForm]     = useState(false);
-  const [formDate, setFormDate]     = useState(TODAY);
-  const [selectedSprint, setSprint] = useState(CURRENT_SPRINT_NUM);
-  const { colors, accent }          = useAppearance();
+  const [view,          setView]     = useState('list');
+  const [search,        setSearch]   = useState('');
+  const [filterSubject, setFS]       = useState('All');
+  const [filterPriority,setFP]       = useState('All');
+  const [showForm,      setShowForm] = useState(false);
+  const [formDate,      setFormDate] = useState(TODAY);
+  const [selectedSprint,setSprint]   = useState(CURRENT_SPRINT_NUM);
+  const [editingTask,   setEditing]  = useState(null); // ← edit modal state
+  const { colors, accent }           = useAppearance();
 
   const openFormFor = (date) => {
     let d = date;
@@ -650,11 +882,9 @@ export function Tasks() {
     setShowForm(true);
   };
 
-
   const sprintTasks = selectedSprint === null
     ? tasks
     : tasks.filter(t => getTaskSprintNum(t.date) === selectedSprint);
-
 
   const filtered = sprintTasks.filter(t => {
     const q = search.toLowerCase();
@@ -681,12 +911,23 @@ export function Tasks() {
 
   return (
     <div className="min-h-full flex flex-col gap-4" style={{ background: colors.bg, padding: '1rem' }}>
-      {showForm && <AddTaskForm defaultDate={formDate} onAdd={addTask} onClose={() => setShowForm(false)} />}
+
+      {/* ── Modals ── */}
+      {showForm && (
+        <AddTaskForm defaultDate={formDate} onAdd={addTask} onClose={() => setShowForm(false)} />
+      )}
+      {editingTask && (
+        <EditTaskForm
+          task={editingTask}
+          onSave={editTask}
+          onClose={() => setEditing(null)}
+        />
+      )}
 
       {loading && (
         <div className="flex items-center justify-center py-16">
           <div className="animate-spin">
-            <div className="w-8 h-8 border-4 rounded-full" style={{ borderColor: colors.border, borderTopColor: accent.main }}></div>
+            <div className="w-8 h-8 border-4 rounded-full" style={{ borderColor: colors.border, borderTopColor: accent.main }} />
           </div>
           <p className="ml-3" style={{ color: colors.textMuted }}>Loading tasks...</p>
         </div>
@@ -785,7 +1026,13 @@ export function Tasks() {
                   </p>
                 </div>
               ) : filtered.map(task => (
-                <TaskRow key={task.id} task={task} onToggle={() => toggle(task.id)} onRemove={() => remove(task.id)} />
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  onToggle={() => toggle(task.id)}
+                  onRemove={() => remove(task.id)}
+                  onEdit={() => setEditing(task)}
+                />
               ))}
             </div>
           )}
