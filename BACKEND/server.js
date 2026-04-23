@@ -9,6 +9,7 @@ import taskRoutes          from './routes/taskRoutes.js';
 import timerRoutes         from './routes/timerRoutes.js';
 import noteRoutes          from './routes/notesRoutes.js';
 import achievementsRoutes  from './routes/achievementsRoutes.js';
+import settingsRoutes      from './routes/settingsRoutes.js';
 
 connectDB();
 
@@ -21,8 +22,6 @@ app.use(helmet({
 app.use(cors({
   origin:         process.env.CLIENT_URL || 'http://localhost:5173',
   credentials:    true,
-  // ✅ Required: exposes the custom sync summary header to the browser (Axios)
-  // Without this, response.headers['x-calendar-sync'] is always undefined
   exposedHeaders: ['X-Calendar-Sync'],
 }));
 
@@ -34,6 +33,7 @@ app.use('/api/tasks',        taskRoutes);
 app.use('/api/study-timer',  timerRoutes);
 app.use('/api/achievements', achievementsRoutes);
 app.use('/api/notes',        noteRoutes);
+app.use('/api/settings',     settingsRoutes);
 
 app.get('/', (req, res) => res.send('AcadFlu API is running ✅'));
 app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));

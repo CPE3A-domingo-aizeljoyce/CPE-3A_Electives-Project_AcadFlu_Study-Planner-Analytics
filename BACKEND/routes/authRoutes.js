@@ -24,6 +24,6 @@ router.get   ('/google/callback', googleCallback);
 router.post  ('/forgot-password', forgotPassword);
 router.post  ('/reset-password',  resetPassword);
 router.get   ('/me',              protect, getMe);
-router.delete('/delete-account',  protect, deleteAccount);  // ← ADDED
+router.delete('/delete-account',  protect, deleteAccount);
 
 export default router;
