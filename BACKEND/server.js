@@ -25,7 +25,8 @@ app.use(cors({
   exposedHeaders: ['X-Calendar-Sync'],
 }));
 
-app.use(express.json({ limit: '10kb' }));
+// ✅ FIXED: was '10kb' — base64 avatar uploads are 20–120 KB after compression
+app.use(express.json({ limit: '5mb' }));
 
 app.use('/api/auth',         authRoutes);
 app.use('/api/goals',        goalRoutes);

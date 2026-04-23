@@ -185,7 +185,7 @@ function AddTaskForm({ defaultDate, onAdd, onClose }) {
             </>
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Subject">
               <select className={cls} style={inputStyle} value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}>
                 {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -208,7 +208,7 @@ function AddTaskForm({ defaultDate, onAdd, onClose }) {
             <input type="date" className={cls} style={inputStyle} value={form.date} min={TODAY} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Start time">
               <input type="time" className={cls} style={inputStyle} value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} />
             </Field>
@@ -225,7 +225,7 @@ function AddTaskForm({ defaultDate, onAdd, onClose }) {
           />
         </div>
 
-        <div className="flex gap-3 pt-1">
+        <div className="flex flex-col-reverse sm:flex-row gap-3 pt-1">
           <button
             onClick={submit}
             className="flex-1 py-2.5 rounded-xl text-white text-sm hover:opacity-90 active:scale-95"
@@ -314,7 +314,7 @@ function EditTaskForm({ task, onSave, onClose }) {
             </>
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Subject">
               <select className={cls} style={inputStyle} value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
                 {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -337,7 +337,7 @@ function EditTaskForm({ task, onSave, onClose }) {
             <input type="date" className={cls} style={inputStyle} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Start time">
               <input type="time" className={cls} style={inputStyle} value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} />
             </Field>
@@ -354,7 +354,7 @@ function EditTaskForm({ task, onSave, onClose }) {
           />
         </div>
 
-        <div className="flex gap-3 pt-1">
+        <div className="flex flex-col-reverse sm:flex-row gap-3 pt-1">
           <button
             onClick={submit}
             disabled={saving}
@@ -381,7 +381,7 @@ function TaskRow({ task, onToggle, onRemove, onEdit }) {
   const color = SUBJECT_COLOR[task.subject] || accent.main;
   return (
     <div
-      className="flex items-center gap-3 px-4 py-3 rounded-2xl group transition-all"
+      className="flex flex-wrap sm:flex-nowrap items-start sm:items-center gap-3 px-4 py-3 rounded-2xl group transition-all"
       style={{ background: colors.card, border: `1px solid ${colors.border}`, opacity: task.done ? 0.5 : 1 }}
     >
       <button
@@ -398,7 +398,7 @@ function TaskRow({ task, onToggle, onRemove, onEdit }) {
 
       <div className="w-0.5 h-10 rounded-full shrink-0" style={{ background: color, opacity: 0.7 }} />
 
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-[12rem] sm:min-w-0">
         <p
           className="text-sm mb-1 truncate"
           style={{ color: task.done ? colors.textMuted : colors.text, fontWeight: 500, textDecoration: task.done ? 'line-through' : 'none' }}
@@ -418,25 +418,47 @@ function TaskRow({ task, onToggle, onRemove, onEdit }) {
         </div>
       </div>
 
-      <PriorityBadge p={task.priority} />
+      <div className="ml-8 sm:ml-0 w-full sm:w-auto flex items-center justify-between sm:justify-end gap-2">
+        <PriorityBadge p={task.priority} />
 
-      <button
-        onClick={onEdit}
-        className="hidden sm:flex opacity-0 group-hover:opacity-100 w-7 h-7 rounded-xl items-center justify-center hover:text-indigo-400 hover:bg-indigo-400/10 transition-all shrink-0"
-        style={{ color: colors.textMuted }}
-        title="Edit task"
-      >
-        <Pencil className="w-3.5 h-3.5" />
-      </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onEdit}
+            className="flex sm:hidden w-8 h-8 rounded-xl items-center justify-center hover:text-indigo-400 hover:bg-indigo-400/10 transition-all shrink-0"
+            style={{ color: colors.textMuted }}
+            title="Edit task"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
 
-      <button
-        onClick={onRemove}
-        className="hidden sm:flex opacity-0 group-hover:opacity-100 w-7 h-7 rounded-xl items-center justify-center hover:text-red-400 hover:bg-red-400/10 transition-all shrink-0"
-        style={{ color: colors.textMuted }}
-        title="Delete task"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
+          <button
+            onClick={onEdit}
+            className="hidden sm:flex opacity-0 group-hover:opacity-100 w-7 h-7 rounded-xl items-center justify-center hover:text-indigo-400 hover:bg-indigo-400/10 transition-all shrink-0"
+            style={{ color: colors.textMuted }}
+            title="Edit task"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={onRemove}
+            className="flex sm:hidden w-8 h-8 rounded-xl items-center justify-center hover:text-red-400 hover:bg-red-400/10 transition-all shrink-0"
+            style={{ color: colors.textMuted }}
+            title="Delete task"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={onRemove}
+            className="hidden sm:flex opacity-0 group-hover:opacity-100 w-7 h-7 rounded-xl items-center justify-center hover:text-red-400 hover:bg-red-400/10 transition-all shrink-0"
+            style={{ color: colors.textMuted }}
+            title="Delete task"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -470,11 +492,11 @@ function CalendarView({ tasks, onToggle, onRemove, onAddForDate }) {
   return (
     <div className="flex flex-col xl:flex-row gap-5">
       <div className="flex-1 min-w-0 rounded-2xl overflow-hidden flex flex-col" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
-        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${colors.border}` }}>
+        <div className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${colors.border}` }}>
           <button onClick={prevMonth} className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: colors.card2, border: `1px solid ${colors.border}`, color: colors.textSub }}>
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <h3 className="text-sm" style={{ fontWeight: 700, color: colors.text }}>{MONTHS[month]} {year}</h3>
+          <h3 className="text-sm text-center flex-1 min-w-0" style={{ fontWeight: 700, color: colors.text }}>{MONTHS[month]} {year}</h3>
           <button onClick={nextMonth} className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: colors.card2, border: `1px solid ${colors.border}`, color: colors.textSub }}>
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -526,7 +548,7 @@ function CalendarView({ tasks, onToggle, onRemove, onAddForDate }) {
         </div>
       </div>
 
-      <div className="w-full xl:w-80 shrink-0 rounded-2xl flex flex-col" style={{ background: colors.card, border: `1px solid ${colors.border}`, maxHeight: 520 }}>
+      <div className="w-full xl:w-80 shrink-0 rounded-2xl flex flex-col min-w-0" style={{ background: colors.card, border: `1px solid ${colors.border}`, maxHeight: 520 }}>
         <div className="px-4 py-3 flex items-start justify-between gap-3 shrink-0" style={{ borderBottom: `1px solid ${colors.border}` }}>
           <div>
             <p className="text-sm" style={{ fontWeight: 700, color: colors.text }}>
@@ -587,7 +609,7 @@ function CalendarView({ tasks, onToggle, onRemove, onAddForDate }) {
 
         {selTotal > 0 && (
           <div className="px-4 pb-4 pt-3 shrink-0" style={{ borderTop: `1px solid ${colors.border}`, background: colors.card2 }}>
-            <div className="flex items-end justify-between mb-3">
+            <div className="flex items-end justify-between gap-3 mb-3">
               <h3 className="text-xs" style={{ color: colors.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Day progress</h3>
               <span className="text-base" style={{ color: accent.main, fontWeight: 700 }}>
                 {Math.round((selDone / selTotal) * 100)}%
@@ -971,7 +993,16 @@ export function Tasks() {
   ];
 
   return (
-    <div className="min-h-full flex flex-col gap-4" style={{ background: colors.bg, padding: '1rem' }}>
+    <div
+      className="min-h-full flex flex-col gap-4"
+      style={{
+        background: colors.bg,
+        paddingTop: 'clamp(0.5rem, 1.5vw, 0.85rem)',
+        paddingRight: 'clamp(0.75rem, 2vw, 1rem)',
+        paddingBottom: 'clamp(0.75rem, 2vw, 1rem)',
+        paddingLeft: 'clamp(0.75rem, 2vw, 1rem)',
+      }}
+    >
 
       {showForm && (
         <AddTaskForm defaultDate={formDate} onAdd={addTask} onClose={() => setShowForm(false)} />
@@ -1012,34 +1043,34 @@ export function Tasks() {
 
       {!loading && (
         <>
-          <div className="flex items-start justify-between gap-3">
-            <div>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
               <h1 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.5px', lineHeight: 1.3, color: colors.text }}>Task Scheduler</h1>
               <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{completed} of {total} tasks · {pct}% done</p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center p-1 gap-0.5 rounded-xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+            <div className="ml-auto flex flex-col items-end gap-2 self-start sm:flex-row sm:items-center">
+              <div className="flex items-center min-w-0 overflow-x-auto p-1 gap-0.5 rounded-xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
                 {VIEW_OPTIONS.map(({ v, icon, label }) => (
                   <button
                     key={v}
                     onClick={() => setView(v)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all"
+                    className="flex flex-1 sm:flex-none items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all whitespace-nowrap"
                     style={view === v
                       ? { background: accent.main, color: '#fff', fontWeight: 600, boxShadow: `0 0 10px rgba(${accent.rgb},0.35)` }
                       : { color: colors.textMuted, fontWeight: 500 }}
                   >
                     {icon}
-                    <span className="hidden sm:inline">{label}</span>
+                    <span className="hidden md:inline">{label}</span>
                   </button>
                 ))}
               </div>
               <button
                 onClick={() => openFormFor(newTaskDate)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-sm hover:opacity-90 active:scale-95"
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-white text-sm hover:opacity-90 active:scale-95 whitespace-nowrap"
                 style={{ background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, fontWeight: 600, boxShadow: `0 0 16px rgba(${accent.rgb},0.3)` }}
               >
                 <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">New Task</span>
+                <span>New Task</span>
               </button>
             </div>
           </div>
@@ -1057,7 +1088,7 @@ export function Tasks() {
                 style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${accent.main}, #22c55e)`, boxShadow: `0 0 10px rgba(${accent.rgb},0.4)` }}
               />
             </div>
-            <div className="flex items-center gap-4 mt-2.5">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2.5">
               {[
                 { label: 'Total',   val: total,             color: colors.textMuted },
                 { label: 'Done',    val: completed,         color: '#22c55e'        },
@@ -1073,7 +1104,7 @@ export function Tasks() {
 
           {(view === 'list' || view === 'kanban') && (
             <div className="flex flex-wrap gap-2 items-center">
-              <div className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl" style={{ background: colors.card, border: `1px solid ${colors.border}`, minWidth: '160px' }}>
+              <div className="flex items-center gap-2 flex-1 basis-full md:basis-auto min-w-0 px-3 py-2 rounded-xl" style={{ background: colors.card, border: `1px solid ${colors.border}`, minWidth: '160px' }}>
                 <Search className="w-4 h-4 shrink-0" style={{ color: colors.textMuted }} />
                 <input
                   className="flex-1 bg-transparent text-sm outline-none"
@@ -1084,7 +1115,7 @@ export function Tasks() {
                 />
               </div>
               <select
-                className="px-3 py-2 rounded-xl text-sm outline-none flex-1"
+                className="px-3 py-2 rounded-xl text-sm outline-none flex-1 basis-[12rem]"
                 style={{ background: colors.card, border: `1px solid ${colors.border}`, color: colors.textSub, colorScheme: colors.inputScheme, minWidth: '120px' }}
                 value={filterSubject}
                 onChange={e => setFS(e.target.value)}
@@ -1093,7 +1124,7 @@ export function Tasks() {
                 {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
               <select
-                className="px-3 py-2 rounded-xl text-sm outline-none flex-1"
+                className="px-3 py-2 rounded-xl text-sm outline-none flex-1 basis-[12rem]"
                 style={{ background: colors.card, border: `1px solid ${colors.border}`, color: colors.textSub, colorScheme: colors.inputScheme, minWidth: '120px' }}
                 value={filterPriority}
                 onChange={e => setFP(e.target.value)}

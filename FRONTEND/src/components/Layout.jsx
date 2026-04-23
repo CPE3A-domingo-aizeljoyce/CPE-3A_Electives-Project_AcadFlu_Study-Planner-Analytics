@@ -67,6 +67,42 @@ const getProfileInitials = (name) => {
   return name.split(' ').filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase();
 };
 
+// ─── Avatar circle — shows photo if available, falls back to gradient initials ─
+function AvatarCircle({ avatar, initials, size, accent, borderRadius = '50%', boxShadow }) {
+  const [failed, setFailed] = useState(false);
+
+  // Reset failed flag whenever avatar src changes (new upload or removal)
+  useEffect(() => { setFailed(false); }, [avatar]);
+
+  const showImg = avatar && !failed;
+
+  return (
+    <div
+      style={{
+        width: size, height: size, borderRadius,
+        flexShrink: 0, overflow: 'hidden',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontWeight: 700,
+        background: showImg
+          ? 'transparent'
+          : `linear-gradient(135deg, ${accent.main}, ${accent.light})`,
+        boxShadow,
+      }}
+    >
+      {showImg ? (
+        <img
+          src={avatar}
+          alt="avatar"
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span style={{ color: '#fff', fontSize: size * 0.375 }}>{initials}</span>
+      )}
+    </div>
+  );
+}
+
 // ─── Profile Dropdown ─────────────────────────────────────────────────────────
 function ProfileDropdown({ colors, accent, lvl, realXP, profile, profileInitials, onClose }) {
   const navigate = useNavigate();
@@ -100,10 +136,15 @@ function ProfileDropdown({ colors, accent, lvl, realXP, profile, profileInitials
       style={{ ...posStyle, background: colors.card, border: `1px solid ${colors.border}` }}>
       <div className="p-4" style={{ borderBottom: `1px solid ${colors.border}` }}>
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-sm text-white flex-shrink-0"
-            style={{ fontWeight: 800, background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, boxShadow: `0 0 16px rgba(${accent.rgb},.4)` }}>
-            {profileInitials}
-          </div>
+          {/* ✅ FIXED: was always showing initials text, now shows avatar photo */}
+          <AvatarCircle
+            avatar={profile.avatar}
+            initials={profileInitials}
+            size={44}
+            accent={accent}
+            borderRadius="12px"
+            boxShadow={`0 0 16px rgba(${accent.rgb},.4)`}
+          />
           <div className="min-w-0">
             <p className="text-sm truncate" style={{ fontWeight: 700, color: colors.text }}>{profile.name}</p>
             <p className="text-xs" style={{ color: accent.main, fontWeight: 500 }}>Pro Scholar</p>
@@ -283,11 +324,15 @@ function SidebarContent({ collapsed, isMobile, colors, accent, lvl, realXP, real
               onMouseEnter={e => e.currentTarget.style.background = `rgba(${accent.rgb},.08)`}
               onMouseLeave={e => { if (!showProfile) e.currentTarget.style.background = 'transparent'; }}
             >
+              {/* ✅ FIXED: was always showing initials, now shows avatar photo */}
               <div className="relative flex-shrink-0">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs text-white"
-                  style={{ fontWeight: 700, background: `linear-gradient(135deg, ${accent.main}, ${accent.light})` }}>
-                  {profileInitials}
-                </div>
+                <AvatarCircle
+                  avatar={profile.avatar}
+                  initials={profileInitials}
+                  size={32}
+                  accent={accent}
+                  borderRadius="50%"
+                />
                 <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
                   style={{ background: '#22c55e', border: `2px solid ${colors.sidebar}` }} />
               </div>
@@ -299,12 +344,19 @@ function SidebarContent({ collapsed, isMobile, colors, accent, lvl, realXP, real
           </div>
         ) : (
           <div className="flex justify-center mt-2">
+            {/* ✅ FIXED: collapsed sidebar button now also shows avatar photo */}
             <button
               data-profile-trigger
               onClick={() => setShowProfile(v => !v)}
-              className="relative w-8 h-8 rounded-full flex items-center justify-center text-xs text-white transition-opacity"
-              style={{ fontWeight: 700, background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, border: 'none', cursor: 'pointer' }}>
-              {profileInitials}
+              className="relative w-8 h-8 rounded-full transition-opacity"
+              style={{ border: 'none', cursor: 'pointer', padding: 0, background: 'transparent' }}>
+              <AvatarCircle
+                avatar={profile.avatar}
+                initials={profileInitials}
+                size={32}
+                accent={accent}
+                borderRadius="50%"
+              />
               <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
                 style={{ background: '#22c55e', border: `2px solid ${colors.sidebar}` }} />
             </button>
@@ -324,7 +376,6 @@ export function Layout() {
   const location = useLocation();
   const { accent, colors, compactMode, animations, showXPBar, showStreak } = useAppearance();
 
-  
   const [realXP, setRealXP] = useState(0);
   const [realStreak, setRealStreak] = useState(0);
 
@@ -450,12 +501,19 @@ export function Layout() {
             </div>
             <span className="text-sm" style={{ fontWeight: 700, color: colors.text }}>Acadflu</span>
           </div>
+          {/* ✅ FIXED: mobile header button now shows avatar photo */}
           <button
             data-profile-trigger
             onClick={() => setShowProfile(v => !v)}
-            className="relative w-8 h-8 rounded-full flex items-center justify-center text-xs text-white flex-shrink-0"
-            style={{ fontWeight: 700, background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, border: 'none', cursor: 'pointer' }}>
-            {profileInitials}
+            className="relative w-8 h-8 rounded-full flex-shrink-0"
+            style={{ border: 'none', cursor: 'pointer', padding: 0, background: 'transparent' }}>
+            <AvatarCircle
+              avatar={profile.avatar}
+              initials={profileInitials}
+              size={32}
+              accent={accent}
+              borderRadius="50%"
+            />
             <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
               style={{ background: '#22c55e', border: `2px solid ${colors.sidebar}` }} />
           </button>

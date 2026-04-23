@@ -1,18 +1,39 @@
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-// ── Response handler — preserves ALL backend fields (message, detail, step, etc.) ──
+// ── Response handler ───────────────────────────────────────────────────────────
+// Handles both { error } and { message } shapes from the backend.
+// Also handles non-JSON bodies (e.g. Express 413 "request entity too large").
 const handleResponse = async (res) => {
-  const data = await res.json();
+  let data = {};
+  try {
+    data = await res.json();
+  } catch {
+    // Body is not JSON — e.g. Express plain-text 413 error
+    if (!res.ok) {
+      const err = new Error(
+        res.status === 413
+          ? 'Image is too large. Please use a smaller image.'
+          : `Request failed with status ${res.status}.`
+      );
+      err.status = res.status;
+      throw err;
+    }
+    return {};
+  }
+
   if (!res.ok) {
-    const err = new Error(data.message || 'Request failed.');
-    err.detail  = data.detail  || null;
-    err.step    = data.step    || null;
-    err.status  = res.status;
+    // Backend uses { error } in settings/auth controllers, { message } in others
+    const err = new Error(data.error || data.message || 'Request failed.');
+    err.error  = data.error  || null;
+    err.detail = data.detail || null;
+    err.step   = data.step   || null;
+    err.status = res.status;
     err.requiresVerification = data.requiresVerification || false;
     err.isGoogleSignIn       = data.isGoogleSignIn       || false;
     err.isGoogleAccount      = data.isGoogleAccount      || false;
     throw err;
   }
+
   return data;
 };
 
@@ -125,7 +146,18 @@ export const changePasswordApi = async ({ currentPassword, newPassword, confirmP
 export const deleteAccountApi = async () => {
   const res = await fetch(`${BASE_URL}/api/auth/delete-account`, {
     method:  'DELETE',
-    headers: authHeaders(),   // no body needed, no Content-Type needed
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// ✅ NEW — PATCH /api/settings/avatar
+// Pass a base64 data URL string to set, or null to remove the avatar
+export const updateAvatarApi = async (avatarBase64OrNull) => {
+  const res = await fetch(`${BASE_URL}/api/settings/avatar`, {
+    method:  'PATCH',
+    headers: authHeaders(true),
+    body:    JSON.stringify({ avatar: avatarBase64OrNull }),
   });
   return handleResponse(res);
 };

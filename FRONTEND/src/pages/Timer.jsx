@@ -684,6 +684,7 @@ export function StudyTimer() {
             ].map(t => {
               const Icon = t.icon;
               const saveSettings = (updated) => {
+                if (sessionLocked) return;
                 setTimerSettings(updated);
                 const payload = { profile: {}, timer: updated, notifs: {} };
                 localStorage.setItem(SETTINGS_KEY, JSON.stringify(payload));
@@ -691,15 +692,23 @@ export function StudyTimer() {
                 setModeConfig(buildModeConfig(accent.main, accentGlow, updated));
               };
               return (
-                <div key={t.key} className="flex items-center gap-1 px-2 py-1.5 rounded-lg" style={{ background: t.bgColor, border: `1px solid ${t.borderColor}` }}>
+                <div
+                  key={t.key}
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg"
+                  style={{
+                    background: t.bgColor,
+                    border: `1px solid ${t.borderColor}`,
+                    opacity: sessionLocked ? 0.65 : 1,
+                  }}>
                   <Icon className="w-3 h-3 flex-shrink-0" style={{ color: t.color }} />
                   <button onClick={() => {
                     const newVal = Math.max(1, Number(timerSettings[t.key]) - 1);
                     saveSettings({ ...timerSettings, [t.key]: String(newVal) });
                   }} className="w-5 h-5 rounded flex items-center justify-center hover:opacity-70" style={{ color: t.color, fontSize: '12px', fontWeight: 700 }}>−</button>
-                  <input type="number" min="1" max="120" className="w-8 bg-transparent border-none outline-none text-center text-xs" 
+                  <input type="number" min="1" max="120" className="w-8 bg-transparent border-none outline-none text-center text-xs disabled:cursor-not-allowed" 
                     style={{ color: t.color, fontWeight: 700 }}
                     value={timerSettings[t.key]} 
+                    disabled={sessionLocked}
                     onChange={e => {
                       const val = e.target.value;
                       if (val === '') return;
