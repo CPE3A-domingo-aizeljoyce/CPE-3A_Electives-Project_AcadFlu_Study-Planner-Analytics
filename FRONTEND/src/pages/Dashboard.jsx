@@ -216,7 +216,7 @@ export function Dashboard() {
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm"
                 style={{ background: `rgba(${accent.rgb},0.15)`, border: `1px solid rgba(${accent.rgb},0.3)`, color: accent.light }}>
                 <Flame className="w-4 h-4 text-orange-400" />
-                <span style={{ fontWeight: 600 }}>{realStreak} {realStreak === 1 ? 'Day' : 'Days'} Streak</span>
+               <span style={{ fontWeight: 600 }}>{realStreak} {realStreak <= 1 ? 'Day' : 'Days'} Streak</span>
               </div>
             )}
             
@@ -303,7 +303,7 @@ export function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" style={{ marginBottom: compactMode ? '0.75rem' : '1rem' }}>
         <StatCard colors={colors} icon={<Clock       className="w-4 h-4 text-indigo-400" />} label="Today's Study Time"  value={todayDisplay}                  sub={`${dailySessions.length} sessions today`}        iconBg="rgba(99,102,241,0.15)"  />
         <StatCard colors={colors} icon={<TrendingUp  className="w-4 h-4 text-green-400" />}  label="Productivity Score"  value={`${productivityScore}%`}       sub={`${allCompleted} of ${allTotal} tasks done`}     iconBg="rgba(34,197,94,0.12)" />
-        <StatCard colors={colors} icon={<Flame className="w-4 h-4 text-orange-400" />} label="Current Streak" value={`${realStreak} ${realStreak === 1 ? 'Day' : 'Days'}`} sub="Keep the fire burning!" iconBg="rgba(249,115,22,0.12)" />
+        <StatCard colors={colors} icon={<Flame className="w-4 h-4 text-orange-400" />} label="Current Streak" value={`${realStreak} ${realStreak <= 1 ? 'Day' : 'Days'}`} sub="Keep the fire burning!" iconBg="rgba(249,115,22,0.12)" />
         <StatCard colors={colors} icon={<CheckSquare className="w-4 h-4 text-purple-400" />} label="Tasks Completed"     value={`${allCompleted}/${allTotal}`} sub={`${allTotal - allCompleted} remaining overall`}  iconBg="rgba(139,92,246,0.12)" />
       </div>
 

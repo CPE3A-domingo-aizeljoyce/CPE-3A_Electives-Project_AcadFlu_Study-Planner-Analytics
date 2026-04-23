@@ -42,10 +42,10 @@ const defaultNotifSettings = {
 };
 
 const parseTimerSettings = (payload) => ({
-  focusDuration:      String(payload?.focusDuration      || payload?.timer?.focusDuration      || defaultTimerSettings.focusDuration),
-  shortBreak:         String(payload?.shortBreak          || payload?.timer?.shortBreak          || defaultTimerSettings.shortBreak),
-  longBreak:          String(payload?.longBreak           || payload?.timer?.longBreak           || defaultTimerSettings.longBreak),
-  sessionsBeforeLong: String(payload?.sessionsBeforeLong  || payload?.timer?.sessionsBeforeLong  || defaultTimerSettings.sessionsBeforeLong),
+  focusDuration:      String(payload?.focusDuration      ?? payload?.timer?.focusDuration      ?? defaultTimerSettings.focusDuration),
+  shortBreak:         String(payload?.shortBreak         ?? payload?.timer?.shortBreak         ?? defaultTimerSettings.shortBreak),
+  longBreak:          String(payload?.longBreak          ?? payload?.timer?.longBreak          ?? defaultTimerSettings.longBreak),
+  sessionsBeforeLong: String(payload?.sessionsBeforeLong ?? payload?.timer?.sessionsBeforeLong ?? defaultTimerSettings.sessionsBeforeLong),
   autoStartBreaks:    payload?.autoStartBreaks    ?? payload?.timer?.autoStartBreaks    ?? defaultTimerSettings.autoStartBreaks,
   autoStartSessions:  payload?.autoStartSessions  ?? payload?.timer?.autoStartSessions  ?? defaultTimerSettings.autoStartSessions,
   soundEnabled:       payload?.soundEnabled        ?? payload?.timer?.soundEnabled        ?? defaultTimerSettings.soundEnabled,
@@ -359,8 +359,9 @@ export function StudyTimer() {
   };
 
   //Support explicit mode override for Auto-Start feature
-  const handleStartSession = async (explicitMode) => {
-    if (running || activeSession) return;
+  const handleStartSession = async (explicitMode, isAutoStart = false) => {
+    if (!isAutoStart && (running || activeSession)) return;
+
     const targetMode = typeof explicitMode === 'string' ? explicitMode : mode;
     const targetConfig = modeConfig[targetMode];
     
@@ -547,11 +548,13 @@ export function StudyTimer() {
 
       showSessionCompleteNotification(currentMode, nextMode);
 
-      const shouldAutoStart = (currentMode === 'work');
+      const shouldAutoStart = 
+        (currentMode === 'work' && timerSettings.autoStartBreaks) || 
+        (currentMode !== 'work' && timerSettings.autoStartSessions);
 
       if (shouldAutoStart) {
         setTimeout(() => {
-          handleStartSession(nextMode);
+          handleStartSession(nextMode, true); 
         }, 1000); 
       }
 
@@ -710,13 +713,16 @@ export function StudyTimer() {
                     value={timerSettings[t.key]} 
                     disabled={sessionLocked}
                     onChange={e => {
-                      const val = e.target.value;
-                      if (val === '') return;
-                      const num = Number(val);
-                      if (Number.isFinite(num) && num > 0) {
-                        saveSettings({ ...timerSettings, [t.key]: val });
-                      }
-                    }} />
+  const val = e.target.value;
+  if (val === '') {
+    saveSettings({ ...timerSettings, [t.key]: '' });
+    return;
+  }
+  const num = Number(val);
+  if (Number.isFinite(num) && num > 0) {
+    saveSettings({ ...timerSettings, [t.key]: val });
+  }
+}} />
                   <button onClick={() => {
                     const newVal = Number(timerSettings[t.key]) + 1;
                     saveSettings({ ...timerSettings, [t.key]: String(newVal) });

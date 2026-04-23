@@ -227,9 +227,9 @@ function SidebarContent({ collapsed, isMobile, colors, accent, lvl, realXP, real
               style={{ padding: compactMode ? '8px 12px' : '10px 12px', background: 'linear-gradient(135deg, rgba(249,115,22,.15), rgba(249,115,22,.06))', border: '1px solid rgba(249,115,22,.25)' }}>
               <Flame className="w-4 h-4 flex-shrink-0" style={{ color: '#fb923c' }} />
               <div>
-                <p className="text-xs" style={{ fontWeight: 600, color: '#fb923c' }}>{realStreak} {realStreak === 1 ? 'Day' : 'Days'} Streak</p>
-                {!compactMode && <p className="text-xs" style={{ color: colors.textSub }}>Keep it going!</p>}
-              </div>
+  <p className="text-xs" style={{ fontWeight: 600, color: '#fb923c' }}>{realStreak} {realStreak <= 1 ? 'Day' : 'Days'} Streak</p>
+  {!compactMode && <p className="text-xs" style={{ color: colors.textSub }}>Keep it going!</p>}
+</div>
             </div>
           ) : (
             <div className="flex justify-center">
