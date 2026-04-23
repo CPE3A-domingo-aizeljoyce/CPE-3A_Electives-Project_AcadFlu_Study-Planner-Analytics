@@ -3,9 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { Brain, Eye, EyeOff, ArrowLeft, Zap, Flame, Trophy, AlertCircle, Mail, Loader2 } from 'lucide-react';
 import { loginUser, registerUser, forgotPasswordApi } from '../api/authApi';
 
-const BORDER = '#1a2540';
-const CARD   = '#131929';
-const CARD2  = '#0f1626';
+
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
 
@@ -78,6 +76,19 @@ export function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState(searchParams.get('tab') === 'signup' ? 'signup' : 'login');
+ const isLight = localStorage.getItem('public_theme') === 'light';
+
+  const BG = isLight ? '#f8fafc' : '#0d1117';
+  const BORDER = isLight ? 'rgba(203, 213, 225, 0.7)' : '#1a2540';
+  const CARD   = isLight ? '#ffffff' : '#131929';
+  const CARD2  = isLight ? '#ffffff' : '#0f1626';
+  const TEXT_MAIN = isLight ? '#0f172a' : '#ffffff';
+  const TEXT_SUB = isLight ? '#475569' : '#94a3b8';
+  const SHADOW = isLight ? '0 12px 35px rgba(0,0,0,0.08)' : 'none';
+
+  useEffect(() => {
+    document.body.style.backgroundColor = BG;
+  }, [BG]);
 
   const [showPass,      setShowPass]      = useState(false);
   const [showConfirm,   setShowConfirm]   = useState(false);
@@ -356,31 +367,42 @@ export function Login() {
   const inputStyle = (field) => ({
     background:  CARD2,
     border:      `1px solid ${errors[field] ? '#ef4444' : BORDER}`,
-    colorScheme: 'dark',
+    color:       TEXT_MAIN,
+    colorScheme: isLight ? 'light' : 'dark',
   });
 
   const focusStyle = { borderColor: '#6366f1' };
   const blurStyle  = (field) => ({ borderColor: errors[field] ? '#ef4444' : BORDER });
 
   return (
-    <div className="h-screen flex overflow-hidden" style={{ background: '#0d1117', fontFamily: "'Inter', sans-serif" }}>
-
+    <div className="h-screen flex overflow-hidden relative z-0 transition-colors duration-300" style={{ background: BG, fontFamily: "'Inter', sans-serif" }}>
+      
+      {/* GLOBAL BACKGROUND GLOW */}
+      {isLight && (
+        <div className="absolute inset-0 pointer-events-none -z-10 overflow-hidden">
+          <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] rounded-full"
+            style={{ background: 'radial-gradient(closest-side, rgba(37,99,235,0.15) 0%, transparent 100%)', filter: 'blur(80px)' }} />
+          <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] rounded-full"
+            style={{ background: 'radial-gradient(closest-side, rgba(99,102,241,0.12) 0%, transparent 100%)', filter: 'blur(80px)' }} />
+        </div>
+      )}
       {/* Mobile Back Button */}
       <button
         onClick={() => view === 'forgot' ? closeForgot() : navigate(-1)}
-        className="lg:hidden fixed top-4 left-4 flex items-center gap-1.5 p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all z-50"
-        style={{ fontWeight: 500 }}>
+        className="lg:hidden fixed top-4 left-4 flex items-center gap-1.5 p-2 rounded-lg transition-all z-50"
+        style={{ color: TEXT_SUB, fontWeight: 500 }}>
         <ArrowLeft className="w-5 h-5" />
       </button>
 
       {/* ── Left panel ───────────────────────────────────────────────────────── */}
-      <div className="hidden lg:flex flex-col justify-between w-[420px] flex-shrink-0 p-10 overflow-y-auto"
+      <div className="hidden lg:flex flex-col justify-between w-[420px] flex-shrink-0 p-10 overflow-y-auto transition-colors duration-300"
         style={{ background: CARD2, borderRight: `1px solid ${BORDER}` }}>
         <div>
           <div className="flex items-center gap-2 mb-16">
             <button
               onClick={() => view === 'forgot' ? closeForgot() : navigate(-1)}
-              className="flex items-center justify-center p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+              className="flex items-center justify-center p-2 rounded-lg transition-all"
+              style={{ color: TEXT_SUB }}>
               <ArrowLeft className="w-5 h-5" />
             </button>
             <button onClick={() => navigate('/')} className="flex items-center gap-2.5 group flex-1">
@@ -388,14 +410,14 @@ export function Login() {
                 style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 0 20px rgba(99,102,241,0.4)' }}>
                 <Brain className="w-5 h-5 text-white" />
               </div>
-              <span className="text-white text-base" style={{ fontWeight: 700 }}>AcadFlu</span>
+              <span className="text-base" style={{ color: TEXT_MAIN, fontWeight: 700 }}>AcadFlu</span>
             </button>
           </div>
 
-          <h2 className="text-white text-2xl mb-3" style={{ fontWeight: 800, letterSpacing: '-0.5px' }}>
+          <h2 className="text-2xl mb-3" style={{ color: TEXT_MAIN, fontWeight: 800, letterSpacing: '-0.5px' }}>
             Your academic<br />glow-up starts here.
           </h2>
-          <p className="text-slate-500 text-sm mb-10" style={{ lineHeight: 1.7 }}>
+          <p className="text-sm mb-10" style={{ color: TEXT_SUB, lineHeight: 1.7 }}>
             Join 50,000+ students who've transformed how they study — with science-backed techniques and gamified progress.
           </p>
 
@@ -406,13 +428,13 @@ export function Login() {
                   style={{ background: `${p.color}18` }}>
                   <p.icon className="w-4 h-4" style={{ color: p.color }} />
                 </div>
-                <span className="text-slate-400 text-sm" style={{ fontWeight: 500 }}>{p.text}</span>
+                <span className="text-sm" style={{ color: TEXT_SUB, fontWeight: 500 }}>{p.text}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="text-slate-700 text-xs" style={{ lineHeight: 1.6, textAlign: 'center' }}>
+        <div className="text-xs" style={{ color: TEXT_SUB, lineHeight: 1.6, textAlign: 'center' }}>
           © 2026 AcadFlu · Built for learners<br />
           Developed by BS Computer Engineering Students<br />
           Bulacan State University
@@ -428,7 +450,7 @@ export function Login() {
             style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
             <Brain className="w-5 h-5 text-white" />
           </div>
-          <span className="text-white text-base" style={{ fontWeight: 700 }}>AcadFlu</span>
+          <span className="text-base" style={{ color: TEXT_MAIN, fontWeight: 700 }}>AcadFlu</span>
         </button>
 
         <div className="w-full max-w-sm">
@@ -442,18 +464,18 @@ export function Login() {
                   <Mail className="w-8 h-8" style={{ color: '#818cf8' }} />
                 </div>
                 <div>
-                  <div className="text-white text-base mb-1" style={{ fontWeight: 700 }}>Check your inbox!</div>
-                  <div className="text-slate-500 text-sm" style={{ lineHeight: 1.7 }}>
+                  <div className="text-base mb-1" style={{ color: TEXT_MAIN, fontWeight: 700 }}>Check your inbox!</div>
+                  <div className="text-sm" style={{ color: TEXT_SUB, lineHeight: 1.7 }}>
                     We sent a password reset link to<br />
                     <span style={{ color: '#818cf8', fontWeight: 600 }}>{forgotEmail}</span>
                   </div>
-                  <div className="text-slate-600 text-xs mt-3" style={{ lineHeight: 1.6 }}>
+                  <div className="text-xs mt-3" style={{ color: TEXT_SUB, lineHeight: 1.6 }}>
                     Click the link in the email to reset your password.<br />
                     The link expires in 1 hour.
                   </div>
                 </div>
                 <button type="button" onClick={closeForgot}
-                  className="text-indigo-400 hover:text-indigo-300 text-sm transition-colors"
+                  className="text-indigo-500 hover:text-indigo-400 text-sm transition-colors"
                   style={{ fontWeight: 500 }}>
                   ← Back to Log in
                 </button>
@@ -463,27 +485,27 @@ export function Login() {
               <>
                 <div className="mb-7">
                   <button type="button" onClick={closeForgot}
-                    className="flex items-center gap-1.5 text-slate-500 hover:text-slate-300 text-sm transition-colors mb-5"
-                    style={{ fontWeight: 500 }}>
+                    className="flex items-center gap-1.5 text-sm transition-colors mb-5"
+                    style={{ color: TEXT_SUB, fontWeight: 500 }}>
                     <ArrowLeft className="w-4 h-4" /> Back to Log in
                   </button>
-                  <h1 className="text-white text-2xl mb-1" style={{ fontWeight: 800, letterSpacing: '-0.4px' }}>
+                  <h1 className="text-2xl mb-1" style={{ color: TEXT_MAIN, fontWeight: 800, letterSpacing: '-0.4px' }}>
                     Reset your password
                   </h1>
-                  <p className="text-slate-500 text-sm">Enter your email and we'll send you a reset link.</p>
+                  <p className="text-sm" style={{ color: TEXT_SUB }}>Enter your email and we'll send you a reset link.</p>
                 </div>
 
                 {forgotError && (
                   <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl mb-4"
                     style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
-                    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-red-400 text-sm">{forgotError}</p>
+                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-red-500 text-sm">{forgotError}</p>
                   </div>
                 )}
 
                 <form onSubmit={handleForgotSubmit} className="space-y-4" noValidate>
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1.5" style={{ fontWeight: 500 }}>
+                    <label className="block text-xs mb-1.5" style={{ color: TEXT_SUB, fontWeight: 500 }}>
                       Email address
                     </label>
                     <input
@@ -492,10 +514,10 @@ export function Login() {
                       value={forgotEmail}
                       onChange={e => { setForgotEmail(e.target.value); if (forgotError) setForgotError(''); }}
                       autoComplete="email"
-                      className="w-full px-4 py-2.5 rounded-xl text-sm text-slate-200 placeholder-slate-600 outline-none transition-all"
-                      style={{ background: CARD2, border: `1px solid ${forgotError ? '#ef4444' : BORDER}`, colorScheme: 'dark' }}
-                      onFocus={e => (e.currentTarget.style.borderColor = '#6366f1')}
-                      onBlur={e  => (e.currentTarget.style.borderColor = forgotError ? '#ef4444' : BORDER)}
+                      className="w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all"
+                      style={inputStyle('email')}
+                      onFocus={e => Object.assign(e.currentTarget.style, focusStyle)}
+                      onBlur={e  => Object.assign(e.currentTarget.style, blurStyle('email'))}
                     />
                   </div>
                   <button type="submit" disabled={forgotLoading}
@@ -511,23 +533,23 @@ export function Login() {
             /* ══ AUTH VIEW ══ */
             <>
               {/* Tab switcher */}
-              <div className="flex p-1 rounded-2xl mb-8" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
+              <div className="flex p-1 rounded-2xl mb-8" style={{ background: CARD, border: `1px solid ${BORDER}`, boxShadow: SHADOW }}>
                 {['login', 'signup'].map(t => (
                   <button key={t} onClick={() => setTab(t)}
                     className="flex-1 py-2.5 rounded-xl text-sm transition-all duration-200"
                     style={tab === t
                       ? { background: '#6366f1', color: '#fff', fontWeight: 600, boxShadow: '0 0 16px rgba(99,102,241,0.4)' }
-                      : { color: '#64748b', fontWeight: 500 }}>
+                      : { color: TEXT_SUB, fontWeight: 500 }}>
                     {t === 'login' ? 'Log in' : 'Sign up'}
                   </button>
                 ))}
               </div>
 
               <div className="mb-7">
-                <h1 className="text-white text-2xl mb-1" style={{ fontWeight: 800, letterSpacing: '-0.4px' }}>
+                <h1 className="text-2xl mb-1" style={{ color: TEXT_MAIN, fontWeight: 800, letterSpacing: '-0.4px' }}>
                   {tab === 'login' ? 'Welcome back' : 'Create your account'}
                 </h1>
-                <p className="text-slate-500 text-sm">
+                <p className="text-sm" style={{ color: TEXT_SUB }}>
                   {tab === 'login'
                     ? 'Sign in to continue your study streak.'
                     : 'Start your free account — no credit card needed.'}
@@ -537,8 +559,8 @@ export function Login() {
               {apiError && (
                 <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl mb-4"
                   style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
-                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-red-400 text-sm">{apiError}</p>
+                  <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-red-500 text-sm">{apiError}</p>
                 </div>
               )}
 
@@ -551,30 +573,30 @@ export function Login() {
                   </div>
 
                   <div>
-                    <div className="text-white text-base mb-1" style={{ fontWeight: 700 }}>Check your inbox!</div>
-                    <div className="text-slate-500 text-sm" style={{ lineHeight: 1.7 }}>
+                    <div className="text-base mb-1" style={{ color: TEXT_MAIN, fontWeight: 700 }}>Check your inbox!</div>
+                    <div className="text-sm" style={{ color: TEXT_SUB, lineHeight: 1.7 }}>
                       We sent a verification link to<br />
                       <span style={{ color: '#818cf8', fontWeight: 600 }}>{form.email}</span>
                     </div>
-                    <div className="text-slate-600 text-xs mt-3" style={{ lineHeight: 1.6 }}>
+                    <div className="text-xs mt-3" style={{ color: TEXT_SUB, lineHeight: 1.6 }}>
                       Click the link in the email to activate your account.<br />
                       The link expires in 24 hours.
                     </div>
                   </div>
 
                   <div className="w-full pt-1 space-y-2">
-                    <div className="text-slate-600 text-xs text-center">Wrong email address?</div>
+                    <div className="text-xs text-center" style={{ color: TEXT_SUB }}>Wrong email address?</div>
                     <button
                       type="button"
                       onClick={() => { setSuccess(false); setForm(prev => ({ ...prev, email: '', password: '', confirm: '' })); }}
-                      className="w-full py-2.5 rounded-xl text-slate-400 hover:text-white text-sm transition-all hover:bg-white/5"
-                      style={{ border: `1px solid ${BORDER}`, fontWeight: 500 }}>
+                      className="w-full py-2.5 rounded-xl text-sm transition-all hover:opacity-70"
+                      style={{ color: TEXT_SUB, border: `1px solid ${BORDER}`, fontWeight: 500 }}>
                       Use a different email
                     </button>
                     <button
                       type="button"
                       onClick={() => { setSuccess(false); setTab('login'); }}
-                      className="text-indigo-400 hover:text-indigo-300 text-sm transition-colors block w-full pt-1"
+                      className="text-indigo-500 hover:text-indigo-400 text-sm transition-colors block w-full pt-1"
                       style={{ fontWeight: 500 }}>
                       Back to Log in
                     </button>
@@ -587,7 +609,7 @@ export function Login() {
 
                   {tab === 'signup' && (
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1.5" style={{ fontWeight: 500 }}>Full name</label>
+                      <label className="block text-xs mb-1.5" style={{ color: TEXT_SUB, fontWeight: 500 }}>Full name</label>
                       <input
                         type="text"
                         placeholder="Juan dela Cruz"
@@ -595,17 +617,17 @@ export function Login() {
                         onChange={set('name')}
                         autoComplete="name"
                         maxLength={50}
-                        className="w-full px-4 py-2.5 rounded-xl text-sm text-slate-200 placeholder-slate-600 outline-none transition-all"
+                        className="w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all"
                         style={inputStyle('name')}
                         onFocus={e => Object.assign(e.currentTarget.style, focusStyle)}
                         onBlur={e  => Object.assign(e.currentTarget.style, blurStyle('name'))}
                       />
-                      {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
+                      {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
                     </div>
                   )}
 
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1.5" style={{ fontWeight: 500 }}>Email</label>
+                    <label className="block text-xs mb-1.5" style={{ color: TEXT_SUB, fontWeight: 500 }}>Email</label>
                     <div className="relative">
                       <input
                         type="email"
@@ -613,7 +635,7 @@ export function Login() {
                         value={form.email}
                         onChange={set('email')}
                         autoComplete="email"
-                        className="w-full px-4 py-2.5 rounded-xl text-sm text-slate-200 placeholder-slate-600 outline-none transition-all"
+                        className="w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all"
                         style={inputStyle('email')}
                         onFocus={e => Object.assign(e.currentTarget.style, focusStyle)}
                         onBlur={handleEmailBlur}
@@ -624,15 +646,15 @@ export function Login() {
                         </div>
                       )}
                     </div>
-                    {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
+                    {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs text-slate-400" style={{ fontWeight: 500 }}>Password</label>
+                      <label className="text-xs" style={{ color: TEXT_SUB, fontWeight: 500 }}>Password</label>
                       {tab === 'login' && (
                         <button type="button" onClick={openForgot}
-                          className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                          className="text-xs text-indigo-500 hover:text-indigo-400 transition-colors"
                           style={{ fontWeight: 500 }}>
                           Forgot password?
                         </button>
@@ -645,26 +667,27 @@ export function Login() {
                         value={form.password}
                         onChange={set('password')}
                         autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
-                        className="w-full px-4 py-2.5 pr-11 rounded-xl text-sm text-slate-200 placeholder-slate-600 outline-none transition-all"
+                        className="w-full px-4 py-2.5 pr-11 rounded-xl text-sm outline-none transition-all"
                         style={inputStyle('password')}
                         onFocus={e => Object.assign(e.currentTarget.style, focusStyle)}
                         onBlur={e  => Object.assign(e.currentTarget.style, blurStyle('password'))}
                       />
                       <button type="button" onClick={() => setShowPass(v => !v)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                        style={{ color: TEXT_SUB }}
                         tabIndex={-1}>
                         {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
-                    {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password}</p>}
+                    {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
                     {tab === 'signup' && !errors.password && (
-                      <p className="text-slate-600 text-xs mt-1">Min 8 chars with uppercase, lowercase, and number</p>
+                      <p className="text-xs mt-1" style={{ color: TEXT_SUB }}>Min 8 chars with uppercase, lowercase, and number</p>
                     )}
                   </div>
 
                   {tab === 'signup' && (
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1.5" style={{ fontWeight: 500 }}>Confirm password</label>
+                      <label className="block text-xs mb-1.5" style={{ color: TEXT_SUB, fontWeight: 500 }}>Confirm password</label>
                       <div className="relative">
                         <input
                           type={showConfirm ? 'text' : 'password'}
@@ -672,18 +695,19 @@ export function Login() {
                           value={form.confirm}
                           onChange={set('confirm')}
                           autoComplete="new-password"
-                          className="w-full px-4 py-2.5 pr-11 rounded-xl text-sm text-slate-200 placeholder-slate-600 outline-none transition-all"
+                          className="w-full px-4 py-2.5 pr-11 rounded-xl text-sm outline-none transition-all"
                           style={inputStyle('confirm')}
                           onFocus={e => Object.assign(e.currentTarget.style, focusStyle)}
                           onBlur={e  => Object.assign(e.currentTarget.style, blurStyle('confirm'))}
                         />
                         <button type="button" onClick={() => setShowConfirm(v => !v)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                          style={{ color: TEXT_SUB }}
                           tabIndex={-1}>
                           {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
-                      {errors.confirm && <p className="text-red-400 text-xs mt-1">{errors.confirm}</p>}
+                      {errors.confirm && <p className="text-red-500 text-xs mt-1">{errors.confirm}</p>}
                     </div>
                   )}
 
@@ -693,7 +717,7 @@ export function Login() {
                       <div className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-all"
                         style={{
                           background: rememberMe ? '#6366f1' : 'transparent',
-                          border:     `1.5px solid ${rememberMe ? '#6366f1' : '#334155'}`,
+                          border:     `1.5px solid ${rememberMe ? '#6366f1' : BORDER}`,
                         }}>
                         {rememberMe && (
                           <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
@@ -701,7 +725,7 @@ export function Login() {
                           </svg>
                         )}
                       </div>
-                      <span className="text-slate-400 text-xs" style={{ fontWeight: 500 }}>Remember me</span>
+                      <span className="text-xs" style={{ color: TEXT_SUB, fontWeight: 500 }}>Remember me</span>
                     </div>
                   )}
 
@@ -715,7 +739,7 @@ export function Login() {
 
                   <div className="flex items-center gap-3 my-1">
                     <div className="flex-1 h-px" style={{ background: BORDER }} />
-                    <span className="text-slate-600 text-xs">or continue with</span>
+                    <span className="text-xs" style={{ color: TEXT_SUB }}>or continue with</span>
                     <div className="flex-1 h-px" style={{ background: BORDER }} />
                   </div>
 
@@ -723,8 +747,8 @@ export function Login() {
                     type="button"
                     onClick={() => handleGoogleLogin()}
                     disabled={googleLoading}
-                    className="w-full py-3 rounded-xl text-slate-200 text-sm transition-all hover:scale-[1.02] flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
-                    style={{ background: CARD, border: `1px solid ${BORDER}`, fontWeight: 500 }}
+                    className="w-full py-3 rounded-xl text-sm transition-all hover:scale-[1.02] flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                    style={{ background: CARD, border: `1px solid ${BORDER}`, color: TEXT_MAIN, fontWeight: 500 }}
                     onMouseEnter={e => { if (!googleLoading) e.currentTarget.style.borderColor = '#4285F4'; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; }}
                   >
@@ -735,10 +759,10 @@ export function Login() {
                     {tab === 'login' ? 'Continue with Google' : 'Sign up with Google'}
                   </button>
 
-                  <p className="text-center text-slate-600 text-xs pt-1">
+                  <p className="text-center text-xs pt-1" style={{ color: TEXT_SUB }}>
                     {tab === 'login' ? "Don't have an account? " : 'Already have an account? '}
                     <button type="button" onClick={() => setTab(tab === 'login' ? 'signup' : 'login')}
-                      className="text-indigo-400 hover:text-indigo-300 transition-colors" style={{ fontWeight: 500 }}>
+                      className="text-indigo-500 hover:text-indigo-400 transition-colors" style={{ fontWeight: 500 }}>
                       {tab === 'login' ? 'Sign up free' : 'Log in'}
                     </button>
                   </p>
