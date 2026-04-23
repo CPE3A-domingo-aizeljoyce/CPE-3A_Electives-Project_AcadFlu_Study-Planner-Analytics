@@ -5,9 +5,10 @@ import { Brain, ArrowLeft, Sun, Moon, Target, Eye, Code2, X, Github, Mail } from
 const TEAM = [
   { name: 'Moran, Allysa Mae',  role: 'Lead UI/UX Designer',   color: '#06b6d4', github: 'https://github.com/CPE3A-moran-allysamae', email: 'allysamoran29@gmail.com' },
   { name: 'Domingo, Aizel Joyce', role: 'Frontend Engineer',     color: '#ec4899', github: 'https://github.com/CPE3A-domingo-aizeljoyce', email: 'aizeljoyce12@gmail.com' },
-  { name: 'Sebastian, Randel',  role: 'Backend Architect',     color: '#22c55e', github: 'https://github.com/CPE3A-sebastian-randel', email: 'randels1417@gmail.com' },
   { name: 'Deliguer, Coleen',   role: 'Systems Analyst',       color: '#8b5cf6', github: 'https://github.com/CPE3A-deliguer-coleen', email: 'deliguercoleensuexx@gmail.com' },
-  { name: 'Pastor, Jerry',      role: 'Full Stack Developer',  color: '#f97316', github: 'https://github.com/CPE3A-pastor-jerryjr', email: 'jhaypastor24@gmail.com' }
+  { name: 'Pastor, Jerry',      role: 'Full Stack Developer',  color: '#f97316', github: 'https://github.com/CPE3A-pastor-jerryjr', email: 'jhaypastor24@gmail.com' },
+  { name: 'Sebastian, Randel',  role: 'Backend Architect',     color: '#22c55e', github: 'https://github.com/CPE3A-sebastian-randel', email: 'randels1417@gmail.com' }
+
 ];
 
 export function AboutUs() {
