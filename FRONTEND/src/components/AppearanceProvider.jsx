@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 
 export const ACCENT_PALETTE = {
   indigo: { main: '#6366f1', light: '#8b5cf6', rgb: '99,102,241'  },
@@ -23,17 +23,19 @@ const LIGHT = {
   tooltipBg: '#ffffff', tooltipBorder: '#e2e8f0', inputScheme: 'light',
 };
 
-const LS_KEY = 'sf_appearance';
+const LS_KEY  = 'sf_appearance';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const defaultState = {
-  theme: 'dark',
+  theme:       'dark',
   accentColor: 'indigo',
   compactMode: false,
-  animations: true,
-  showXPBar: true,
-  showStreak: true,
+  animations:  true,
+  showXPBar:   true,
+  showStreak:  true,
 };
 
+// Load from localStorage immediately — prevents theme flash on page load
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
@@ -77,9 +79,71 @@ const AppearanceCtx = createContext(null);
 export function AppearanceProvider({ children }) {
   const [state, setState] = useState(loadState);
 
+  // Ref to skip saving back to server immediately after we load FROM the server
+  // (prevents unnecessary write right after a read)
+  const skipNextServerSave = useRef(false);
+  // Ref to skip the very first render's save effect
+  const isFirstRender = useRef(true);
+
+  // ── Apply to DOM + localStorage whenever state changes ─────────────────────
   useEffect(() => {
     applyToDOM(state);
     localStorage.setItem(LS_KEY, JSON.stringify(state));
+  }, [state]);
+
+  // ── On mount: load appearance from server if user is logged in ──────────────
+  // This is the authoritative source — overrides localStorage with DB value
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    fetch(`${BASE_URL}/api/settings`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.appearance) return;
+        const serverAppearance = data.appearance;
+        // Mark that the next state change is from server load, not user action
+        skipNextServerSave.current = true;
+        setState(prev => ({ ...prev, ...serverAppearance }));
+      })
+      .catch(() => {
+        // Silently fail — localStorage value stays applied
+      });
+  }, []); // ← runs only once on mount
+
+  // ── Save appearance to server whenever user changes it ─────────────────────
+  useEffect(() => {
+    // Skip the very first render
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    // Skip if this change came from a server load (not a user action)
+    if (skipNextServerSave.current) {
+      skipNextServerSave.current = false;
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    // Debounce — wait 700ms after last change before saving
+    const timer = setTimeout(() => {
+      fetch(`${BASE_URL}/api/settings`, {
+        method:  'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ appearance: state }),
+      }).catch(() => {
+        // Silently fail — next save will catch up
+      });
+    }, 700);
+
+    return () => clearTimeout(timer);
   }, [state]);
 
   const patch  = (partial) => setState(prev => ({ ...prev, ...partial }));

@@ -2,9 +2,12 @@ import crypto from 'crypto';
 import dns    from 'dns';
 import { google }         from 'googleapis';
 import User               from '../models/User.js';
-import StudySession from '../models/studySessionModel.js';
+import StudySession       from '../models/studySessionModel.js';
 import Task               from '../models/Task.js';
 import Goal               from '../models/goalModel.js';
+import Note               from '../models/Note.js';
+import Achievement        from '../models/Achievement.js';
+import UserSettings       from '../models/UserSettings.js';
 import { generateToken }  from '../utils/generateToken.js';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/sendEmail.js';
 
@@ -452,20 +455,28 @@ export const deleteAccount = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Cascade delete — tanggalin lahat ng data ng user
+    // Cascade delete — remove all data owned by this user
+    // Note: UserSettings uses 'userId' field; all other models use 'user'
     await Promise.all([
-      StudySession.deleteMany({ user: userId }),
-      Task        .deleteMany({ user: userId }),
-      Goal        .deleteMany({ user: userId }),
+      StudySession .deleteMany({ user:   userId }),
+      Task         .deleteMany({ user:   userId }),
+      Goal         .deleteMany({ user:   userId }),
+      Note         .deleteMany({ user:   userId }),
+      Achievement  .deleteMany({ user:   userId }),
+      UserSettings .deleteMany({ userId: userId }),
     ]);
 
-    // Tanggalin ang user mismo
+    // Delete the user account itself
     await User.findByIdAndDelete(userId);
 
     res.status(200).json({ message: 'Account and all associated data have been deleted.' });
 
   } catch (err) {
     console.error('Delete account error:', err);
-    res.status(500).json({ message: 'Server error. Could not delete account.' });
+    // Return the real error message so it's visible during debugging
+    res.status(500).json({
+      message: 'Server error. Could not delete account.',
+      detail:  err.message,
+    });
   }
 };

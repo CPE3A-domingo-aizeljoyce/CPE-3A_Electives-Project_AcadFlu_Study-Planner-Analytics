@@ -27,17 +27,16 @@ export const loginUser = async ({ email, password }) => {
 };
 
 // POST /api/auth/google
-// FIX: was sending { credential } but backend expects { access_token }
 export const googleAuthApi = async (access_token) => {
   const res = await fetch(`${BASE_URL}/api/auth/google`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ access_token }),   // ← was { credential }
+    body:    JSON.stringify({ access_token }),
   });
   return handleResponse(res);
 };
 
-// POST /api/auth/forgot-password ← ADDED
+// POST /api/auth/forgot-password
 export const forgotPasswordApi = async (email) => {
   const res = await fetch(`${BASE_URL}/api/auth/forgot-password`, {
     method:  'POST',
@@ -47,7 +46,7 @@ export const forgotPasswordApi = async (email) => {
   return handleResponse(res);
 };
 
-// POST /api/auth/reset-password ← ADDED
+// POST /api/auth/reset-password
 export const resetPasswordApi = async ({ token, password }) => {
   const res = await fetch(`${BASE_URL}/api/auth/reset-password`, {
     method:  'POST',
@@ -71,4 +70,51 @@ export const getMe = async () => {
 export const logoutUser = () => {
   localStorage.removeItem('token');
   localStorage.removeItem('user');
+};
+
+// ── Settings API ──────────────────────────────────────────────────────────────
+
+const authHeaders = () => {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
+
+// GET /api/settings
+export const getSettingsApi = async () => {
+  const res = await fetch(`${BASE_URL}/api/settings`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// PUT /api/settings
+export const updateSettingsApi = async (payload) => {
+  const res = await fetch(`${BASE_URL}/api/settings`, {
+    method:  'PUT',
+    headers: authHeaders(),
+    body:    JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+// POST /api/settings/change-password
+export const changePasswordApi = async ({ currentPassword, newPassword, confirmPassword }) => {
+  const res = await fetch(`${BASE_URL}/api/settings/change-password`, {
+    method:  'POST',
+    headers: authHeaders(),
+    body:    JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+  });
+  return handleResponse(res);
+};
+
+// DELETE /api/auth/delete-account
+export const deleteAccountApi = async () => {
+  const res = await fetch(`${BASE_URL}/api/auth/delete-account`, {
+    method:  'DELETE',
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
 };
