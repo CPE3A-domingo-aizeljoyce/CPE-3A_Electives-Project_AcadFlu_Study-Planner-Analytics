@@ -4,7 +4,6 @@ import UserSettings from '../models/UserSettings.js';
 // ── GET /api/settings ─────────────────────────────────────────────────────────
 export const getSettings = async (req, res) => {
   try {
-    // Fetch user WITH password field so we can detect Google-only accounts
     const user     = await User.findById(req.user._id).select('+password');
     const settings = await UserSettings.findOne({ userId: user._id });
 
@@ -17,7 +16,6 @@ export const getSettings = async (req, res) => {
       avatar:    user.avatar || null,
       bio:       settings?.profile?.bio       ?? '',
       studyGoal: settings?.profile?.studyGoal ?? 4,
-      // Account type flags — used by frontend to handle password section correctly
       isGoogleAccount: isGoogleOnly,
       hasPassword:     hasPassword,
     };
@@ -65,7 +63,6 @@ export const updateSettings = async (req, res) => {
     const { profile, notifs, timer, appearance } = req.body;
     const user = req.user;
 
-    // Update name in User model if changed
     if (profile?.name) {
       const trimmed = profile.name.trim();
       if (trimmed.length < 2 || trimmed.length > 50)
@@ -74,7 +71,6 @@ export const updateSettings = async (req, res) => {
         await User.findByIdAndUpdate(user._id, { name: trimmed });
     }
 
-    // Build the update object — only include fields that were sent
     const updateFields = {};
     if (profile) {
       updateFields.profile = {
@@ -117,17 +113,14 @@ export const changePassword = async (req, res) => {
       return res.status(400).json({ error: 'Password must include uppercase, lowercase, and a number.' });
 
     const user = await User.findById(req.user._id).select('+password');
-
     const isGoogleOnly = !!user.googleId && !user.password;
 
     if (isGoogleOnly) {
-      // Google-only account — setting a password for the first time, no current password needed
       user.password = newPassword;
       await user.save();
       return res.json({ message: 'Password set successfully. You can now also sign in with your email and password.' });
     }
 
-    // Normal account — validate current password
     if (!currentPassword)
       return res.status(400).json({ error: 'Current password is required.' });
 
@@ -145,5 +138,43 @@ export const changePassword = async (req, res) => {
   } catch (err) {
     console.error('changePassword error:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// ── PATCH /api/settings/avatar ────────────────────────────────────────────────
+// ✅ NEW — was missing entirely, which crashed the whole settings router on startup
+export const updateAvatar = async (req, res) => {
+  try {
+    const { avatar } = req.body;
+
+    // null / empty = remove avatar
+    if (avatar === null || avatar === '' || avatar === undefined) {
+      await User.findByIdAndUpdate(req.user._id, { avatar: null });
+      return res.json({ message: 'Avatar removed.', avatar: null });
+    }
+
+    if (typeof avatar !== 'string' || !avatar.startsWith('data:image/'))
+      return res.status(400).json({ error: 'Invalid image format. Expected a base64 data URL.' });
+
+    const mimeMatch = avatar.match(/^data:(image\/[a-zA-Z+]+);base64,/);
+    if (!mimeMatch)
+      return res.status(400).json({ error: 'Could not read image type from data URL.' });
+
+    const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedMimes.includes(mimeMatch[1]))
+      return res.status(400).json({ error: 'Only JPEG, PNG, WebP, and GIF images are allowed.' });
+
+    // Rough size check: base64 length × 0.75 ≈ actual bytes
+    const base64Payload  = avatar.split(',')[1] || '';
+    const estimatedBytes = Math.ceil(base64Payload.length * 0.75);
+    if (estimatedBytes > 2 * 1024 * 1024)
+      return res.status(400).json({ error: 'Image is too large. Please use an image under 2 MB.' });
+
+    await User.findByIdAndUpdate(req.user._id, { avatar });
+
+    res.json({ message: 'Avatar updated successfully.', avatar });
+  } catch (err) {
+    console.error('updateAvatar error:', err);
+    res.status(500).json({ error: 'Server error while updating avatar.' });
   }
 };
