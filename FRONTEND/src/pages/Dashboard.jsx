@@ -66,7 +66,9 @@ function StatCard({ icon, label, value, sub, iconBg, colors }) {
 
 // ─── Dashboard page ───────────────────────────────────────────────────────────
 export function Dashboard() {
-  const { tasks, toggle, updateTask, deleteTask } = useTasks();
+ const { tasks, toggle, updateTask, update, editTask, deleteTask, remove } = useTasks();
+  const activeDeleteFn = remove || deleteTask;
+  const activeUpdateFn = updateTask || update || editTask;
   const { accent, colors, showStreak, showXPBar, compactMode } = useAppearance();
 
   const [realXP, setRealXP] = useState(0);
@@ -121,15 +123,18 @@ export function Dashboard() {
 
   // ─── COMPUTATIONS ───
   const lvl = getLevelInfo(realXP);
+  const d = new Date();
+  const REAL_TODAY = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-  // Tasks Computations
-  const todayTasks = tasks.filter(t => t.date === TODAY).sort((a, b) => a.startTime.localeCompare(b.startTime));
- const overdueTasks = tasks.filter(t => t.date < TODAY && !t.done);
+  const todayTasks = tasks.filter(t => t.date === REAL_TODAY).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const overdueTasks = tasks.filter(t => t.date < REAL_TODAY && !t.done);
+  const displayTasks = todayTasks;
+  
   const allCompleted = tasks.filter(t => t.done).length;
   const allTotal = tasks.length;
   const productivityScore = allTotal === 0 ? 0 : Math.round((allCompleted / allTotal) * 100);
-  const todayDone = todayTasks.filter(t => t.done).length;
-  const todayTotal = todayTasks.length;
+  const todayDone = displayTasks.filter(t => t.done).length;
+  const todayTotal = displayTasks.length;
 
   // Daily Quick Stats
   const todayMins = dailySessions.reduce((sum, s) => sum + s.durationMinutes, 0);
@@ -228,68 +233,76 @@ export function Dashboard() {
               </div>
             )}
 
-            {/* OVERDUE DROPDOWN WIDGET */}
-            {overdueTasks.length > 0 && (
-              <div className="relative">
-                <button 
-                  onClick={() => setShowOverdueDropdown(!showOverdueDropdown)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-all hover:scale-105" 
-                  style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444' }}
-                >
-                  <AlertCircle className="w-4 h-4" />
-                  <span style={{ fontWeight: 600 }}>{overdueTasks.length} Overdue</span>
-                </button>
+           {/* 🌟 FIXED: OVERDUE WIDGET (Laging naka-display para hindi mo akalaing nawawala) */}
+            <div className="relative">
+              <button 
+                onClick={() => overdueTasks.length > 0 && setShowOverdueDropdown(!showOverdueDropdown)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-all ${overdueTasks.length > 0 ? 'hover:scale-105 cursor-pointer' : 'opacity-70 cursor-default'}`} 
+                style={overdueTasks.length > 0 
+                  ? { background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444' }
+                  : { background: colors.card2, border: `1px solid ${colors.border}`, color: colors.textMuted }
+                }
+              >
+                <AlertCircle className="w-4 h-4" />
+                <span style={{ fontWeight: 600 }}>{overdueTasks.length} Overdue</span>
+              </button>
 
-                {/* REDESIGNED DROPDOWN MENU */}
-                {showOverdueDropdown && (
-                  <div className="absolute right-0 mt-3 w-80 rounded-2xl shadow-xl z-50 overflow-hidden" 
-                       style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
-                    
-                    {/* Header ng Dropdown */}
-                    <div className="p-4 flex justify-between items-center border-b" style={{ borderColor: colors.border, background: colors.card2 }}>
-                      <h4 className="text-xs uppercase tracking-wider" style={{ fontWeight: 700, color: '#ef4444' }}>Action Needed</h4>
-                      <button onClick={() => setShowOverdueDropdown(false)} className="text-xs font-medium hover:opacity-70 transition-opacity" style={{ color: colors.textSub }}>Close</button>
-                    </div>
-                    
-                    {/* Listahan ng Overdue */}
-                    <div className="max-h-72 overflow-y-auto p-3 space-y-3">
-                      {overdueTasks.map(task => (
-                        <div key={task.id} className="p-4 rounded-2xl flex flex-col gap-3 transition-all" style={{ background: colors.bg, border: `1px solid ${colors.border}` }}>
-                          
-                          <div>
-                            <div className="text-sm truncate mb-1" style={{ fontWeight: 600, color: colors.text }}>{task.title}</div>
-                            <div className="text-xs" style={{ color: colors.textMuted }}>Missed on: {task.date}</div>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-  <button 
-  onClick={() => {
-    updateTask(task.id, { date: TODAY });
-    if (overdueTasks.length === 1) setShowOverdueDropdown(false);
-  }} 
-  className="flex-1 py-2 px-3 rounded-xl text-xs transition-all hover:scale-[1.02]" 
-  style={{ background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, color: '#fff', fontWeight: 600, boxShadow: `0 4px 12px rgba(${accent.rgb}, 0.2)` }}>
-  Move to Today
-</button>
-  
-  {/* Aesthetic Delete Button (Minimalist & Clean) */}
-<button 
-  onClick={() => setTaskToDelete(task)} 
-  className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:bg-red-500/10 text-slate-400 hover:text-red-500" 
-  style={{ border: `1px solid ${colors.border}` }}
-  title="Delete Task"
->
-  <Trash2 className="w-4 h-4" />
-</button>
-</div>
-                          
-                        </div>
-                      ))}
-                    </div>
+              {/* REDESIGNED DROPDOWN MENU */}
+              {showOverdueDropdown && overdueTasks.length > 0 && (
+                <div className="absolute right-0 mt-3 w-80 rounded-2xl shadow-xl z-50 overflow-hidden" 
+                     style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+                  
+                  {/* Header ng Dropdown */}
+                  <div className="p-4 flex justify-between items-center border-b" style={{ borderColor: colors.border, background: colors.card2 }}>
+                    <h4 className="text-xs uppercase tracking-wider" style={{ fontWeight: 700, color: '#ef4444' }}>Action Needed</h4>
+                    <button onClick={() => setShowOverdueDropdown(false)} className="text-xs font-medium hover:opacity-70 transition-opacity" style={{ color: colors.textSub }}>Close</button>
                   </div>
-                )}
-              </div>
-            )}
+                  
+                  {/* Listahan ng Overdue */}
+                  <div className="max-h-72 overflow-y-auto p-3 space-y-3">
+                    {overdueTasks.map(task => (
+                      <div key={task.id} className="p-4 rounded-2xl flex flex-col gap-3 transition-all" style={{ background: colors.bg, border: `1px solid ${colors.border}` }}>
+                        
+                        <div>
+                          <div className="text-sm truncate mb-1" style={{ fontWeight: 600, color: colors.text }}>{task.title}</div>
+                          <div className="text-xs" style={{ color: colors.textMuted }}>Missed on: {task.date}</div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const targetId = task._id || task.id;
+                              
+
+                              if (targetId && activeUpdateFn) {
+                                activeUpdateFn(targetId, { date: REAL_TODAY });
+                              }
+                              
+                              if (overdueTasks.length <= 1) setShowOverdueDropdown(false);
+                            }} 
+                            className="flex-1 py-2 px-3 rounded-xl text-xs transition-all hover:scale-[1.02]" 
+                            style={{ background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, color: '#fff', fontWeight: 600, boxShadow: `0 4px 12px rgba(${accent.rgb}, 0.2)` }}>
+                            Move to Today
+                          </button>
+
+                          {/* Aesthetic Delete Button */}
+                          <button 
+                            onClick={() => setTaskToDelete(task)} 
+                            className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:bg-red-500/10 text-slate-400 hover:text-red-500" 
+                            style={{ border: `1px solid ${colors.border}` }}
+                            title="Delete Task"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             
           </div>
         </div>
@@ -522,19 +535,22 @@ export function Dashboard() {
                 Cancel
               </button>
               <button
-  onClick={() => {
-    const targetId = taskToDelete._id || taskToDelete.id;
-    if (targetId) {
-      deleteTask(targetId);
-    }
-    setTaskToDelete(null);
-    if (overdueTasks.length <= 1) setShowOverdueDropdown(false);
-  }}
-  className="flex-1 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 shadow-lg"
-  style={{ background: '#ef4444', boxShadow: '0 4px 14px rgba(239, 68, 68, 0.3)' }}
->
-  Delete
-</button>
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const targetId = taskToDelete._id || taskToDelete.id;
+                  
+                  if (targetId && activeDeleteFn) {
+                    activeDeleteFn(targetId); 
+                  }
+                  
+                  setTaskToDelete(null);
+                  if (overdueTasks.length <= 1) setShowOverdueDropdown(false);
+                }}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 shadow-lg"
+                style={{ background: '#ef4444', boxShadow: '0 4px 14px rgba(239, 68, 68, 0.3)' }}
+              >
+                Delete
+              </button>
             </div>
             
           </div>

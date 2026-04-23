@@ -205,8 +205,8 @@ function AddTaskForm({ defaultDate, onAdd, onClose }) {
           </div>
 
           <Field label="Date">
-            <input type="date" className={cls} style={inputStyle} value={form.date} min={TODAY} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
-          </Field>
+  <input type="date" className={cls} style={inputStyle} value={form.date} min={TODAY} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+</Field>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Start time">
