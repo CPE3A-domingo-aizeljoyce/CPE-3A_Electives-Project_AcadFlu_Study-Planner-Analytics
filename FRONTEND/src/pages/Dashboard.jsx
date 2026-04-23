@@ -69,7 +69,6 @@ export function Dashboard() {
   const { tasks, toggle, updateTask, deleteTask } = useTasks();
   const { accent, colors, showStreak, showXPBar, compactMode } = useAppearance();
 
-  // 🌟 REAL DATA STATES
   const [realXP, setRealXP] = useState(0);
   const [realStreak, setRealStreak] = useState(0);
   const [recentBadges, setRecentBadges] = useState([]);
@@ -78,12 +77,13 @@ export function Dashboard() {
   const [chartSessions, setChartSessions] = useState([]);
   const [dailySessions, setDailySessions] = useState([]);
   const [weeklySessions, setWeeklySessions] = useState([]);
+  const [showOverdueDropdown, setShowOverdueDropdown] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState(null);
 
-  // 1. Fetch Static Data on Mount (Achievements, Daily Stats, Weekly Stats)
+  // 1. Fetch Static Data on Mount
   useEffect(() => {
     const initData = async () => {
       try {
-        // Fetch XP & Badges
         const achRes = await fetchAchievements();
         if (achRes && achRes.stats) {
           setRealXP(achRes.stats.totalXP || 0);
@@ -95,12 +95,8 @@ export function Dashboard() {
             .sort((a,b) => new Date(b.unlockedAt) - new Date(a.unlockedAt));
           setRecentBadges(unlocked.slice(0, 3));
         }
-
-        // Fetch Today's Data
         const dData = await fetchAnalyticsData('daily');
         setDailySessions(dData || []);
-
-        // Fetch This Week's Data
         const wData = await fetchAnalyticsData('weekly');
         setWeeklySessions(wData || []);
       } catch (e) {
@@ -110,7 +106,7 @@ export function Dashboard() {
     initData();
   }, []);
 
-  // 2. Fetch Chart Data Dynamically when period changes
+  // 2. Fetch Chart Data Dynamically
   useEffect(() => {
     const loadChart = async () => {
       try {
@@ -128,7 +124,7 @@ export function Dashboard() {
 
   // Tasks Computations
   const todayTasks = tasks.filter(t => t.date === TODAY).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  const overdueTasks = tasks.filter(t => t.date < TODAY && !t.done);
+ const overdueTasks = tasks.filter(t => t.date < TODAY && !t.done);
   const allCompleted = tasks.filter(t => t.done).length;
   const allTotal = tasks.length;
   const productivityScore = allTotal === 0 ? 0 : Math.round((allCompleted / allTotal) * 100);
@@ -196,9 +192,9 @@ export function Dashboard() {
        subjectMap[subj] = (subjectMap[subj] || 0) + s.durationMinutes;
     });
     return Object.keys(subjectMap).map(key => ({
-       subject: key.length > 6 ? key.substring(0,6)+'..' : key, // Truncate long names for UI fitting
+       subject: key.length > 6 ? key.substring(0,6)+'..' : key, // Truncate long names
        hours: Number((subjectMap[key] / 60).toFixed(1))
-    })).sort((a,b) => b.hours - a.hours).slice(0, 5); // Display top 5 only
+    })).sort((a,b) => b.hours - a.hours).slice(0, 5); 
   }, [chartSessions]);
 
   const periodTotal = processedChartData.reduce((sum, d) => sum + (d.hours || 0), 0).toFixed(1);
@@ -212,14 +208,18 @@ export function Dashboard() {
           <h1 style={{ fontWeight: 700, fontSize: 'clamp(1rem, 4vw, 1.25rem)', letterSpacing: '-0.4px', lineHeight: 1.2, color: colors.text }}>
             Welcome back to AcadFlu
           </h1>
+          
+          {/* HEADER WIDGETS */}
           <div className="hidden sm:flex items-center gap-3">
+            
             {showStreak && (
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm"
                 style={{ background: `rgba(${accent.rgb},0.15)`, border: `1px solid rgba(${accent.rgb},0.3)`, color: accent.light }}>
                 <Flame className="w-4 h-4 text-orange-400" />
-<span style={{ fontWeight: 600 }}>{realStreak} {realStreak === 1 ? 'Day' : 'Days'} Streak</span>
+                <span style={{ fontWeight: 600 }}>{realStreak} {realStreak === 1 ? 'Day' : 'Days'} Streak</span>
               </div>
             )}
+            
             {showXPBar && (
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm"
                 style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.25)', color: '#4ade80' }}>
@@ -227,6 +227,70 @@ export function Dashboard() {
                 <span style={{ fontWeight: 600 }}>{realXP.toLocaleString()} XP</span>
               </div>
             )}
+
+            {/* OVERDUE DROPDOWN WIDGET */}
+            {overdueTasks.length > 0 && (
+              <div className="relative">
+                <button 
+                  onClick={() => setShowOverdueDropdown(!showOverdueDropdown)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-all hover:scale-105" 
+                  style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444' }}
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  <span style={{ fontWeight: 600 }}>{overdueTasks.length} Overdue</span>
+                </button>
+
+                {/* REDESIGNED DROPDOWN MENU */}
+                {showOverdueDropdown && (
+                  <div className="absolute right-0 mt-3 w-80 rounded-2xl shadow-xl z-50 overflow-hidden" 
+                       style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+                    
+                    {/* Header ng Dropdown */}
+                    <div className="p-4 flex justify-between items-center border-b" style={{ borderColor: colors.border, background: colors.card2 }}>
+                      <h4 className="text-xs uppercase tracking-wider" style={{ fontWeight: 700, color: '#ef4444' }}>Action Needed</h4>
+                      <button onClick={() => setShowOverdueDropdown(false)} className="text-xs font-medium hover:opacity-70 transition-opacity" style={{ color: colors.textSub }}>Close</button>
+                    </div>
+                    
+                    {/* Listahan ng Overdue */}
+                    <div className="max-h-72 overflow-y-auto p-3 space-y-3">
+                      {overdueTasks.map(task => (
+                        <div key={task.id} className="p-4 rounded-2xl flex flex-col gap-3 transition-all" style={{ background: colors.bg, border: `1px solid ${colors.border}` }}>
+                          
+                          <div>
+                            <div className="text-sm truncate mb-1" style={{ fontWeight: 600, color: colors.text }}>{task.title}</div>
+                            <div className="text-xs" style={{ color: colors.textMuted }}>Missed on: {task.date}</div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+  <button 
+  onClick={() => {
+    updateTask(task.id, { date: TODAY });
+    if (overdueTasks.length === 1) setShowOverdueDropdown(false);
+  }} 
+  className="flex-1 py-2 px-3 rounded-xl text-xs transition-all hover:scale-[1.02]" 
+  style={{ background: `linear-gradient(135deg, ${accent.main}, ${accent.light})`, color: '#fff', fontWeight: 600, boxShadow: `0 4px 12px rgba(${accent.rgb}, 0.2)` }}>
+  Move to Today
+</button>
+  
+  {/* Aesthetic Delete Button (Minimalist & Clean) */}
+<button 
+  onClick={() => setTaskToDelete(task)} 
+  className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:bg-red-500/10 text-slate-400 hover:text-red-500" 
+  style={{ border: `1px solid ${colors.border}` }}
+  title="Delete Task"
+>
+  <Trash2 className="w-4 h-4" />
+</button>
+</div>
+                          
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
           </div>
         </div>
         
@@ -304,43 +368,10 @@ export function Dashboard() {
 
         {/* Today's Tasks */}
         <div className="lg:col-span-2 p-4 rounded-2xl min-w-0 overflow-hidden" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
-          {overdueTasks.length > 0 && (
-    <div className="mb-6 p-4 rounded-2xl" style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)' }}>
-      <div className="flex items-center gap-2 mb-3">
-        <AlertCircle className="w-4 h-4 text-red-500" />
-        <h3 className="text-sm uppercase tracking-wider" style={{ fontWeight: 700, color: '#ef4444' }}>Action Needed: Overdue Tasks</h3>
-      </div>
-      <div className="space-y-2">
-        {overdueTasks.map(task => (
-          <div key={task.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
-            <div className="flex-1 min-w-0 pr-2">
-              <div className="text-xs truncate" style={{ fontWeight: 600, color: colors.text }}>{task.title}</div>
-              <div className="text-xs" style={{ color: colors.textMuted }}>Missed on: {task.date}</div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button 
-                onClick={() => updateTask(task.id, { date: TODAY })} 
-                className="px-3 py-1.5 rounded-lg text-xs transition-all hover:scale-105" 
-                style={{ background: accent.main, color: '#fff', fontWeight: 600 }}>
-                Reschedule to Today
-              </button>
-              <button 
-                onClick={() => { if(window.confirm('Delete this overdue task?')) deleteTask(task.id); }} 
-                className="p-1.5 rounded-lg hover:bg-red-500/10 transition-all text-red-400">
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )}
-
 
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-base" style={{ fontWeight: 600, color: colors.text }}>Today's Schedule</h3>
-
 
               {todayTotal > 0 && (
                 <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>
@@ -463,6 +494,52 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+      {/* 🌟 CUSTOM DELETE MODAL 🌟 */}
+      {taskToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 transition-all" style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}>
+          <div className="rounded-[24px] p-8 w-full max-w-sm flex flex-col items-center text-center shadow-2xl animate-in fade-in zoom-in duration-200"
+               style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
+
+            {/* Red Trash Icon Circle */}
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
+                 style={{ background: 'rgba(239, 68, 68, 0.1)' }}>
+              <Trash2 className="w-7 h-7 text-red-500" />
+            </div>
+
+            {/* Modal Text */}
+            <h3 className="text-xl font-bold mb-2" style={{ color: colors.text }}>Delete Task?</h3>
+            <p className="text-sm mb-8" style={{ color: colors.textMuted, lineHeight: 1.6 }}>
+              Are you sure you want to delete <span className="font-semibold" style={{ color: colors.text }}>"{taskToDelete.title}"</span>? This action cannot be undone.
+            </p>
+
+            {/* Cancel & Delete Buttons */}
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={() => setTaskToDelete(null)}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
+                style={{ background: colors.card2, border: `1px solid ${colors.border}`, color: colors.textSub }}
+              >
+                Cancel
+              </button>
+              <button
+  onClick={() => {
+    const targetId = taskToDelete._id || taskToDelete.id;
+    if (targetId) {
+      deleteTask(targetId);
+    }
+    setTaskToDelete(null);
+    if (overdueTasks.length <= 1) setShowOverdueDropdown(false);
+  }}
+  className="flex-1 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 shadow-lg"
+  style={{ background: '#ef4444', boxShadow: '0 4px 14px rgba(239, 68, 68, 0.3)' }}
+>
+  Delete
+</button>
+            </div>
+            
+          </div>
+        </div>
+      )}
     </div>
   );
 }
