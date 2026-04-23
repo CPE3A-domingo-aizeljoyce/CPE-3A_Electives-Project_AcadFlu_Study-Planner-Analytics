@@ -76,7 +76,6 @@ export function Login() {
   const [tab, setTab] = useState(searchParams.get('tab') === 'signup' ? 'signup' : 'login');
   const [isLight, setIsLight] = useState(() => localStorage.getItem('public_theme') === 'light');
 
-  // Sync theme
   useEffect(() => {
     const handleStorage = () => setIsLight(localStorage.getItem('public_theme') === 'light');
     window.addEventListener('storage', handleStorage);
@@ -92,13 +91,13 @@ export function Login() {
     });
   };
 
-  const BG = isLight ? '#f8fafc' : '#0d1117';
-  const BORDER = isLight ? 'rgba(203, 213, 225, 0.7)' : '#1a2540';
-  const CARD   = isLight ? '#ffffff' : '#131929';
-  const CARD2  = isLight ? '#ffffff' : '#0f1626';
+  const BG        = isLight ? '#f8fafc' : '#0d1117';
+  const BORDER    = isLight ? 'rgba(203, 213, 225, 0.7)' : '#1a2540';
+  const CARD      = isLight ? '#ffffff' : '#131929';
+  const CARD2     = isLight ? '#ffffff' : '#0f1626';
   const TEXT_MAIN = isLight ? '#0f172a' : '#ffffff';
-  const TEXT_SUB = isLight ? '#475569' : '#94a3b8';
-  const SHADOW = isLight ? '0 12px 35px rgba(0,0,0,0.08)' : 'none';
+  const TEXT_SUB  = isLight ? '#475569' : '#94a3b8';
+  const SHADOW    = isLight ? '0 12px 35px rgba(0,0,0,0.08)' : 'none';
 
   useEffect(() => {
     document.body.style.backgroundColor = BG;
@@ -159,6 +158,7 @@ export function Login() {
     setSuccess(false);
     setApiError('');
     setDomainInvalid(false);
+    setDomainChecking(false); // ✅ FIXED: reset loading spinner on tab switch
   }, [tab]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
@@ -267,7 +267,6 @@ export function Login() {
             ...prev,
             email: `"@${domain}" doesn't look like a valid email domain.`,
           }));
-          setLoading(false);
           return;
         }
 
@@ -300,7 +299,11 @@ export function Login() {
       if (err.requiresVerification) {
         setApiError('Please verify your email before logging in. Check your inbox for the link.');
       } else if (err.isGoogleSignIn || err.message?.toLowerCase().includes('google sign-in')) {
-        await handleGoogleLogin(form.email.trim().toLowerCase());
+        // ✅ FIX: Show a clear error message instead of auto-redirecting to Google.
+        // The old code auto-called handleGoogleLogin() here, which caused Google-only
+        // accounts to be silently logged in even when the user typed a wrong password.
+        // Now the user must consciously click the "Continue with Google" button.
+        setApiError("This account uses Google sign-in. Please use the 'Continue with Google' button below.");
       } else {
         setApiError(err.message || 'Something went wrong. Please try again.');
       }
@@ -369,7 +372,6 @@ export function Login() {
       const res = await fetch(
         `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/google/url${params}`
       );
-      
       const { url } = await res.json();
       window.location.href = url;
     } catch {
@@ -390,7 +392,7 @@ export function Login() {
 
   return (
     <div className="h-screen flex overflow-hidden relative z-0 transition-colors duration-300" style={{ background: BG, fontFamily: "'Inter', sans-serif" }}>
-      
+
       {/* GLOBAL BACKGROUND GLOW */}
       {isLight && (
         <div className="absolute inset-0 pointer-events-none -z-10 overflow-hidden">
@@ -401,17 +403,12 @@ export function Login() {
         </div>
       )}
 
-      
-
       {/* ── Left panel ───────────────────────────────────────────────────────── */}
       <div className="hidden lg:flex flex-col justify-between w-[420px] flex-shrink-0 p-10 overflow-y-auto transition-colors duration-300 relative z-10"
         style={{ background: CARD2, borderRight: `1px solid ${BORDER}` }}>
 
         <div>
-          {/* Desktop header with Logo and Theme Toggle */}
           <div className="flex items-center justify-between mb-16 relative w-full">
-            
-            {/* Left side: Back Button & Logo */}
             <div className="flex items-center gap-2">
               <button
                 onClick={() => view === 'forgot' ? closeForgot() : navigate(-1)}
@@ -427,22 +424,19 @@ export function Login() {
                 <span className="text-base" style={{ color: TEXT_MAIN, fontWeight: 800, letterSpacing: '-0.3px' }}>AcadFlu</span>
               </button>
             </div>
-
-            {/* Right side: Desktop Theme Toggle */}
-            <button 
-              onClick={toggleTheme} 
+            <button
+              onClick={toggleTheme}
               className="p-2.5 rounded-full transition-all duration-200 hover:scale-110"
               style={{ color: TEXT_SUB, background: isLight ? '#e2e8f0' : '#1e293b', boxShadow: isLight ? '0 4px 10px rgba(0,0,0,0.05)' : '0 4px 10px rgba(0,0,0,0.3)' }}
             >
               {isLight ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             </button>
-
           </div>
 
           <h2 className="text-2xl mb-3" style={{ color: TEXT_MAIN, fontWeight: 800, letterSpacing: '-0.5px' }}>
             Your academic<br />glow-up starts here.
           </h2>
-    
+
           <p className="text-sm mb-10" style={{ color: TEXT_SUB, lineHeight: 1.7 }}>
             Join 50,000+ students who've transformed how they study — with science-backed techniques and gamified progress.
           </p>
@@ -470,9 +464,8 @@ export function Login() {
       {/* ── Right panel ──────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col items-center px-4 sm:px-6 py-6 lg:py-12 pb-12 relative overflow-y-auto w-full z-10">
 
-        {/* 🌟 FINAL MOBILE HEADER: Back (Kaliwa) - Logo (Gitna) - Theme Toggle (Kanan) 🌟 */}
+        {/* Mobile header */}
         <div className="lg:hidden w-full max-w-sm flex items-center justify-between mb-8">
-          
           <button
             onClick={() => view === 'forgot' ? closeForgot() : navigate(-1)}
             className="p-2.5 rounded-xl transition-all hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -488,18 +481,16 @@ export function Login() {
             <span className="text-base" style={{ color: TEXT_MAIN, fontWeight: 800 }}>AcadFlu</span>
           </button>
 
-          <button 
-            onClick={toggleTheme} 
+          <button
+            onClick={toggleTheme}
             className="p-2 rounded-full transition-all hover:scale-110"
             style={{ color: TEXT_SUB, background: isLight ? '#e2e8f0' : '#1e293b' }}
           >
             {isLight ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
           </button>
-
         </div>
 
         <div className="w-full max-w-sm">
-        
 
           {/* ══ FORGOT PASSWORD VIEW ══ */}
           {view === 'forgot' ? (

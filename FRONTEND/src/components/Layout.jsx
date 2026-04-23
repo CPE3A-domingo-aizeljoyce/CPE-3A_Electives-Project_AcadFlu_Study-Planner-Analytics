@@ -50,16 +50,34 @@ const NAV_ITEMS = [
 ];
 
 const SETTINGS_KEY = 'sf_settings';
-const defaultProfile = { name: 'Moran', username: 'mrnski' };
 
+// ✅ FIX: Removed hardcoded 'Moran' — now uses empty defaults
+const defaultProfile = { name: '', email: '', avatar: null };
+
+// ✅ FIX: Falls back to 'user' key (set on every login) if sf_settings is empty
 const loadSavedProfile = () => {
   try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
+    // 1st priority: sf_settings (most up-to-date — includes latest avatar/name from Settings page)
+    const raw     = localStorage.getItem(SETTINGS_KEY);
     const payload = raw ? JSON.parse(raw) : null;
-    return payload?.profile || defaultProfile;
-  } catch {
-    return defaultProfile;
-  }
+    if (payload?.profile?.name) return payload.profile;
+
+    // 2nd priority: 'user' key (set by Login.jsx and AuthCallback on every login)
+    const userRaw = localStorage.getItem('user');
+    if (userRaw) {
+      const u = JSON.parse(userRaw);
+      if (u?.name) return {
+        name:            u.name,
+        email:           u.email  || '',
+        avatar:          u.avatar || null,
+        bio:             '',
+        studyGoal:       '4',
+        isGoogleAccount: false,
+        hasPassword:     true,
+      };
+    }
+  } catch {}
+  return defaultProfile;
 };
 
 const getProfileInitials = (name) => {
@@ -136,7 +154,6 @@ function ProfileDropdown({ colors, accent, lvl, realXP, profile, profileInitials
       style={{ ...posStyle, background: colors.card, border: `1px solid ${colors.border}` }}>
       <div className="p-4" style={{ borderBottom: `1px solid ${colors.border}` }}>
         <div className="flex items-center gap-3 mb-3">
-          {/* ✅ FIXED: was always showing initials text, now shows avatar photo */}
           <AvatarCircle
             avatar={profile.avatar}
             initials={profileInitials}
@@ -227,9 +244,9 @@ function SidebarContent({ collapsed, isMobile, colors, accent, lvl, realXP, real
               style={{ padding: compactMode ? '8px 12px' : '10px 12px', background: 'linear-gradient(135deg, rgba(249,115,22,.15), rgba(249,115,22,.06))', border: '1px solid rgba(249,115,22,.25)' }}>
               <Flame className="w-4 h-4 flex-shrink-0" style={{ color: '#fb923c' }} />
               <div>
-  <p className="text-xs" style={{ fontWeight: 600, color: '#fb923c' }}>{realStreak} {realStreak <= 1 ? 'Day' : 'Days'} Streak</p>
-  {!compactMode && <p className="text-xs" style={{ color: colors.textSub }}>Keep it going!</p>}
-</div>
+                <p className="text-xs" style={{ fontWeight: 600, color: '#fb923c' }}>{realStreak} {realStreak <= 1 ? 'Day' : 'Days'} Streak</p>
+                {!compactMode && <p className="text-xs" style={{ color: colors.textSub }}>Keep it going!</p>}
+              </div>
             </div>
           ) : (
             <div className="flex justify-center">
@@ -324,7 +341,6 @@ function SidebarContent({ collapsed, isMobile, colors, accent, lvl, realXP, real
               onMouseEnter={e => e.currentTarget.style.background = `rgba(${accent.rgb},.08)`}
               onMouseLeave={e => { if (!showProfile) e.currentTarget.style.background = 'transparent'; }}
             >
-              {/* ✅ FIXED: was always showing initials, now shows avatar photo */}
               <div className="relative flex-shrink-0">
                 <AvatarCircle
                   avatar={profile.avatar}
@@ -344,7 +360,6 @@ function SidebarContent({ collapsed, isMobile, colors, accent, lvl, realXP, real
           </div>
         ) : (
           <div className="flex justify-center mt-2">
-            {/* ✅ FIXED: collapsed sidebar button now also shows avatar photo */}
             <button
               data-profile-trigger
               onClick={() => setShowProfile(v => !v)}
@@ -412,30 +427,52 @@ export function Layout() {
     return () => { document.body.style.overflow = ''; };
   }, [mobileOpen]);
 
+  // ✅ FIX: loadSavedProfile now falls back to 'user' key — no more "Moran" on first login
   const [profile, setProfile] = useState(() => loadSavedProfile());
   const profileInitials = getProfileInitials(profile.name);
 
   useEffect(() => {
+    // ✅ FIX: Added guard `payload?.profile?.name` to prevent empty profile overwriting real data
     const handleSettingsUpdated = (event) => {
       const payload = event?.detail || null;
-      if (payload?.profile) {
+      if (payload?.profile?.name) {
+        // Full settings update with a real name — use directly
         setProfile(payload.profile);
       } else {
+        // Timer-only or partial update — re-read from localStorage
+        // Now correctly falls back to 'user' key if sf_settings has no name
         setProfile(loadSavedProfile());
       }
     };
 
+    // ✅ FIX: New listener for direct 'userUpdated' events dispatched by Settings
+    // Handles: name change (handleSave), avatar upload (handleSaveAvatar), avatar remove (handleRemoveAvatar)
+    const handleUserUpdated = (event) => {
+      const u = event?.detail;
+      if (!u) return;
+      setProfile(prev => ({
+        ...prev,
+        ...(u.name   !== undefined && { name:   u.name   }),
+        ...(u.avatar !== undefined && { avatar: u.avatar }),
+        ...(u.email  !== undefined && { email:  u.email  }),
+      }));
+    };
+
+    // Handles cross-tab localStorage changes (e.g. logout in another tab)
     const handleStorageChange = (event) => {
-      if (event.key === SETTINGS_KEY) {
+      if (event.key === SETTINGS_KEY || event.key === 'user') {
         setProfile(loadSavedProfile());
       }
     };
 
     window.addEventListener('studyTimerSettingsUpdated', handleSettingsUpdated);
-    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('userUpdated',               handleUserUpdated);      // ✅ NEW
+    window.addEventListener('storage',                   handleStorageChange);
+
     return () => {
       window.removeEventListener('studyTimerSettingsUpdated', handleSettingsUpdated);
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('userUpdated',               handleUserUpdated);
+      window.removeEventListener('storage',                   handleStorageChange);
     };
   }, []);
 
@@ -501,7 +538,6 @@ export function Layout() {
             </div>
             <span className="text-sm" style={{ fontWeight: 700, color: colors.text }}>Acadflu</span>
           </div>
-          {/* ✅ FIXED: mobile header button now shows avatar photo */}
           <button
             data-profile-trigger
             onClick={() => setShowProfile(v => !v)}

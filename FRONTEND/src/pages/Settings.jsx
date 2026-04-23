@@ -339,6 +339,7 @@ export function Settings() {
   }, []);
 
   // ── Save profile + timer ─────────────────────────────────────────────────
+  // ✅ FIX: Now dispatches 'userUpdated' event so Layout sidebar updates instantly
   const handleSave = async () => {
     setSaveError('');
     const payload = {
@@ -350,11 +351,12 @@ export function Settings() {
     saveSettingsLocally({ ...current, profile: { ...profile, ...payload.profile }, timer });
     try {
       await updateSettingsApi(payload);
-      // Sync name to stored user object
+      // ✅ Sync name to 'user' key AND dispatch userUpdated so Layout re-renders instantly
       try {
-        const u = JSON.parse(localStorage.getItem('user') || '{}');
-        if (u.name !== profile.name)
-          localStorage.setItem('user', JSON.stringify({ ...u, name: profile.name }));
+        const u       = JSON.parse(localStorage.getItem('user') || '{}');
+        const updated = { ...u, name: profile.name };
+        localStorage.setItem('user', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('userUpdated', { detail: updated }));
       } catch {}
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -398,20 +400,29 @@ export function Settings() {
     if (file) handleFileSelect(file);
   };
 
+  // ✅ FIX: Also updates 'user' key with new avatar + dispatches 'userUpdated'
   const handleSaveAvatar = async () => {
     if (!previewUrl) return;
     setAvatarLoading(true);
     setAvatarError('');
     try {
-      const result = await updateAvatarApi(previewUrl);
+      const result    = await updateAvatarApi(previewUrl);
       const newAvatar = result.avatar;
 
-      // Update profile state
+      // Update Settings profile state
       setProfile(p => ({ ...p, avatar: newAvatar }));
 
-      // Update localStorage so Layout sidebar reflects change immediately
+      // Update sf_settings + dispatch studyTimerSettingsUpdated (for Layout listener)
       const current = loadSavedSettings() || {};
       saveSettingsLocally({ ...current, profile: { ...profile, avatar: newAvatar } });
+
+      // ✅ Also sync avatar to 'user' key + dispatch userUpdated
+      try {
+        const u       = JSON.parse(localStorage.getItem('user') || '{}');
+        const updated = { ...u, avatar: newAvatar };
+        localStorage.setItem('user', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('userUpdated', { detail: updated }));
+      } catch {}
 
       setPreviewUrl('');
       setIsChoosingAvatar(false);
@@ -431,14 +442,26 @@ export function Settings() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // ✅ FIX: Also updates 'user' key with avatar: null + dispatches 'userUpdated'
   const handleRemoveAvatar = async () => {
     setAvatarLoading(true);
     setAvatarError('');
     try {
       await updateAvatarApi(null);
       setProfile(p => ({ ...p, avatar: null }));
+
+      // Update sf_settings + dispatch studyTimerSettingsUpdated (for Layout listener)
       const current = loadSavedSettings() || {};
       saveSettingsLocally({ ...current, profile: { ...profile, avatar: null } });
+
+      // ✅ Also sync avatar removal to 'user' key + dispatch userUpdated
+      try {
+        const u       = JSON.parse(localStorage.getItem('user') || '{}');
+        const updated = { ...u, avatar: null };
+        localStorage.setItem('user', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('userUpdated', { detail: updated }));
+      } catch {}
+
       setPreviewUrl('');
       setIsChoosingAvatar(false);
       setAvatarSuccess('Profile picture removed.');

@@ -204,13 +204,13 @@ export const verifyEmail = async (req, res) => {
     user.verificationExpires = undefined;
     await user.save();
 
-    if (isGmailUser(user.email)) {
-      const googleUrl = buildGoogleAuthUrl(user.email);
-      return res.redirect(googleUrl);
-    }
-
+    // ✅ FIXED: Always redirect to frontend first.
+    // Removed Gmail → Google OAuth redirect — Gmail users will connect
+    // Google Calendar inside the app settings instead.
     const jwtToken = generateToken(user._id);
-    res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${jwtToken}&verified=true`);
+    return res.redirect(
+      `${process.env.CLIENT_URL}/auth/callback?token=${jwtToken}&verified=true`
+    );
 
   } catch (err) {
     console.error('Verify email error:', err);
@@ -264,14 +264,12 @@ export const googleCallback = async (req, res) => {
     if (!user) {
       user = await User.findOne({ email });
       if (user) {
-        // ✅ Link existing email/password account to this Google account
         console.log('[Google OAuth] Linking Google to existing email account:', email);
         user.googleId   = googleId;
         user.avatar     = user.avatar || picture;
         user.isVerified = true;
         isNewLink = true;
       } else {
-        // ✅ Brand new user via Google
         console.log('[Google OAuth] Creating new Google user:', email);
         user = new User({ name, email, googleId, avatar: picture, isVerified: true });
       }
@@ -287,7 +285,6 @@ export const googleCallback = async (req, res) => {
       console.log('[Google OAuth] Saving new refresh token for:', email);
       user.googleRefreshToken = tokens.refresh_token;
     } else if (!user.googleRefreshToken) {
-      // ⚠️ No refresh token and none saved — Calendar sync will fail
       console.warn('[Google OAuth] No refresh token received and none saved for:', email,
         '— User may need to revoke Google access and re-authorize.');
     } else {
@@ -359,16 +356,12 @@ export const forgotPassword = async (req, res) => {
     if (!email)
       return res.status(400).json({ message: 'Email is required.' });
 
-    // ✅ FIX: Added .select('+password') — password field has select:false in the model,
-    // so without this, user.password is always undefined, making all Gmail users
-    // (who have googleId set from verification flow) appear as Google-only accounts.
     const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password');
 
     const safeMsg = 'If that email is registered, you will receive a reset link shortly.';
 
     if (!user) return res.status(200).json({ message: safeMsg });
 
-    // Only block reset if it's a pure Google account (googleId set AND no password at all)
     if (user.googleId && !user.password)
       return res.status(200).json({
         message:         'This account was created with Google. Please use "Continue with Google" to sign in.',
@@ -376,11 +369,16 @@ export const forgotPassword = async (req, res) => {
       });
 
     const rawToken = user.createPasswordResetToken();
+
+    // ✅ FIXED: Save token to DB FIRST before sending email.
+    // Old order: send email → save. Bug: if save failed after email sent,
+    // user gets a link with a token that doesn't exist in DB → "invalid token" error.
+    await user.save();
+
     const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${rawToken}`;
 
     try {
       await sendPasswordResetEmail({ name: user.name, email: user.email, resetUrl });
-      await user.save();
     } catch (emailErr) {
       console.error('Password reset email failed to send:', emailErr.message);
       return res.status(500).json({
@@ -453,7 +451,7 @@ export const getMe = async (req, res) => {
 // ── DELETE /api/auth/delete-account ──────────────────────────────────────────
 export const deleteAccount = async (req, res) => {
   const userId = req.user._id;
-  const step   = { name: 'init' };   // tracks which step failed
+  const step   = { name: 'init' };
 
   try {
     console.log('[deleteAccount] ▶ Starting for userId:', userId.toString());
