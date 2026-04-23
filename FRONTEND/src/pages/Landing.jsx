@@ -112,8 +112,10 @@ export function Landing() {
       </nav>
 
       {/* Hero */}
-      <section className="relative px-6 md:px-12 flex flex-col items-center text-center overflow-hidden" style={{ paddingTop: '200px', paddingBottom: '100px' }}>
-        
+     <section 
+  className="relative px-6 md:px-12 flex flex-col items-center justify-center text-center overflow-hidden min-h-screen"
+  style={{ paddingTop: '200px', paddingBottom: '100px' }}
+        >
         {/* 🌟 FIXED: Visible, Hardcoded Gradient Glow (No image needed) */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] rounded-full pointer-events-none -z-10"
           style={{ 
@@ -152,7 +154,8 @@ export function Landing() {
       </section>
       
       {/* App Preview */}
-      <section className="px-4 md:px-12 mb-24" style={{ overflowX: 'hidden' }}>
+     <section className="px-4 md:px-12 mb-24 mt-32 md:mt-72 lg:mt-[500px] xl:mt-[700px]" style={{ overflowX: 'hidden' }}>
+
         <div className="max-w-5xl mx-auto rounded-3xl overflow-hidden relative transition-all duration-300"
           style={{ border: `1px solid ${theme.border}`, boxShadow: theme.baseShadow }}>
           <div className="flex items-center gap-2 px-4 py-3" style={{ background: isLight ? '#f1f5f9' : theme.card, borderBottom: `1px solid ${theme.border}` }}>
