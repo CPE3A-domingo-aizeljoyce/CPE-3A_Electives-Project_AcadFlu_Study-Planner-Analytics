@@ -401,22 +401,7 @@ export function Login() {
         </div>
       )}
 
-      {/* Mobile Back Button */}
-      <button
-        onClick={() => view === 'forgot' ? closeForgot() : navigate(-1)}
-        className="lg:hidden fixed top-4 left-4 flex items-center gap-1.5 p-2 rounded-lg transition-all z-50 hover:bg-black/5 dark:hover:bg-white/5"
-        style={{ color: TEXT_SUB, fontWeight: 500 }}>
-        <ArrowLeft className="w-5 h-5" />
-      </button>
-
-      {/* Mobile Theme Toggle (Top Right for mobile view) */}
-      <button 
-        onClick={toggleTheme} 
-        className="lg:hidden fixed top-4 right-4 p-2.5 rounded-full transition-all duration-200 z-50 hover:scale-110"
-        style={{ color: TEXT_SUB, background: isLight ? '#e2e8f0' : '#1e293b', boxShadow: isLight ? '0 4px 10px rgba(0,0,0,0.05)' : '0 4px 10px rgba(0,0,0,0.3)' }}
-      >
-        {isLight ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-      </button>
+      
 
       {/* ── Left panel ───────────────────────────────────────────────────────── */}
       <div className="hidden lg:flex flex-col justify-between w-[420px] flex-shrink-0 p-10 overflow-y-auto transition-colors duration-300 relative z-10"
@@ -483,18 +468,38 @@ export function Login() {
       </div>
 
       {/* ── Right panel ──────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col items-center px-4 sm:px-6 py-12 pb-12 relative overflow-y-auto w-full z-10">
+      <div className="flex-1 flex flex-col items-center px-4 sm:px-6 py-6 lg:py-12 pb-12 relative overflow-y-auto w-full z-10">
 
-        {/* Mobile Logo */}
-        <button onClick={() => navigate('/')} className="lg:hidden flex flex-col items-center gap-2 mb-8">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #2563eb, #6366f1)', boxShadow: isLight ? '0 4px 15px rgba(37,99,235,0.3)' : '0 0 20px rgba(99,102,241,0.4)' }}>
-            <Brain className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-base" style={{ color: TEXT_MAIN, fontWeight: 700 }}>AcadFlu</span>
-        </button>
+        {/* 🌟 FINAL MOBILE HEADER: Back (Kaliwa) - Logo (Gitna) - Theme Toggle (Kanan) 🌟 */}
+        <div className="lg:hidden w-full max-w-sm flex items-center justify-between mb-8">
+          
+          <button
+            onClick={() => view === 'forgot' ? closeForgot() : navigate(-1)}
+            className="p-2.5 rounded-xl transition-all hover:bg-slate-100 dark:hover:bg-slate-800"
+            style={{ color: TEXT_SUB }}>
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+
+          <button onClick={() => navigate('/')} className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #2563eb, #6366f1)', boxShadow: isLight ? '0 4px 15px rgba(37,99,235,0.3)' : '0 0 20px rgba(99,102,241,0.4)' }}>
+              <Brain className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-base" style={{ color: TEXT_MAIN, fontWeight: 800 }}>AcadFlu</span>
+          </button>
+
+          <button 
+            onClick={toggleTheme} 
+            className="p-2 rounded-full transition-all hover:scale-110"
+            style={{ color: TEXT_SUB, background: isLight ? '#e2e8f0' : '#1e293b' }}
+          >
+            {isLight ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+          </button>
+
+        </div>
 
         <div className="w-full max-w-sm">
+        
 
           {/* ══ FORGOT PASSWORD VIEW ══ */}
           {view === 'forgot' ? (

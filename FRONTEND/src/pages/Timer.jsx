@@ -697,7 +697,7 @@ export function StudyTimer() {
               return (
                 <div
                   key={t.key}
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg"
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg relative z-20"
                   style={{
                     background: t.bgColor,
                     border: `1px solid ${t.borderColor}`,
