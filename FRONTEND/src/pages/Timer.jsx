@@ -120,7 +120,7 @@ export function StudyTimer() {
   const { colors, accent } = useAppearance();
   const accentGlow = `rgba(${accent.rgb},0.45)`;
 
-  const { tasks: globalTasks, remove: removeTaskGlobal, addTask: addTaskGlobal } = useTasks();
+  const { tasks: globalTasks, remove: removeTaskGlobal, addTask: addTaskGlobal, updateTask } = useTasks();
   const activeTasks = (globalTasks || []).filter(t => !t.done && t.status !== 'completed' && t.status !== 'done');
 
   const [timerSettings, setTimerSettings] = useState(loadSavedTimerSettings);
@@ -154,6 +154,8 @@ export function StudyTimer() {
   const [showAbandonPrompt, setShowAbandonPrompt] = useState(false);
 
   const intervalRef       = useRef(null);
+  const savingRef         = useRef(false);
+  const isCompletingRef   = useRef(false);
   const newTaskRef        = useRef(null);
   const goalRef           = useRef(null);
   const onCompleteRef     = useRef(null);
@@ -329,12 +331,12 @@ export function StudyTimer() {
       }
 
       const todayStart = getTodayStart();
-      const todayRes   = await fetchStudySessions({
-        limit:     100,
-        status:    'completed',
-        mode:      'work',
+      const todayRes = await fetchStudySessions({
+        status: 'completed',
+        mode: 'work',
         startDate: todayStart.toISOString(),
       });
+
       if (todayRes.data) {
         const count = todayRes.data.length;
         setTodayWorkCount(count);
@@ -356,25 +358,36 @@ export function StudyTimer() {
     }
   };
 
-  
-  const handleStartSession = async () => {
-    const taskName = selectedTask.trim() || `${config.label} Session`;
-    const targetDuration = config.duration;
+  //Support explicit mode override for Auto-Start feature
+  const handleStartSession = async (explicitMode) => {
+    if (running || activeSession) return;
+    const targetMode = typeof explicitMode === 'string' ? explicitMode : mode;
+    const targetConfig = modeConfig[targetMode];
+    
+    // Automatically generate names for breaks to avoid blank database entries
+    let taskName = selectedTask.trim();
+    if (!taskName) {
+      taskName = `${targetConfig.label} Session`;
+    }
+
+    const targetDuration = targetConfig.duration;
 
     setTimeLeft(targetDuration);
     setRunning(true); 
     playSound('start');
     
     try {
-      const subject = taskName.split(' – ')[0] || taskName.split(' ')[0];
-      const res = await startStudySession({ title: taskName, subject, mode, notes: '' });
+      const matchingTask = globalTasks.find(t => t.title === taskName);
+      const subject = matchingTask ? matchingTask.subject : 'General';
+      
+      const res = await startStudySession({ title: taskName, subject, mode: targetMode, notes: '' });
       
       const sessionData = res?.data || res;
       if (sessionData && (sessionData._id || sessionData.id)) {
         setActiveSession(sessionData);
         
-        if (mode === 'work') showTaskReminder();
-        else if (mode === 'long') showBreakReminder();
+        if (targetMode === 'work') showTaskReminder();
+        else if (targetMode === 'long') showBreakReminder();
       }
     } catch (err) {
       console.error('Error starting session:', err);
@@ -384,15 +397,17 @@ export function StudyTimer() {
           const ghostSessionId = err.response.data.existingSession._id;
           await abandonStudySession(ghostSessionId); 
 
-          const subject = taskName.split(' – ')[0] || taskName.split(' ')[0];
-          const retryRes = await startStudySession({ title: taskName, subject, mode, notes: '' });
+          const matchingTask = globalTasks.find(t => t.title === taskName);
+          const subject = matchingTask ? matchingTask.subject : 'General';
+          
+          const retryRes = await startStudySession({ title: taskName, subject, mode: targetMode, notes: '' });
           
           const sessionData = retryRes?.data || retryRes;
           if (sessionData && (sessionData._id || sessionData.id)) {
             setActiveSession(sessionData);
-            if (mode === 'work') showTaskReminder();
-            else if (mode === 'long') showBreakReminder();
-            return; // Success! Tapos na.
+            if (targetMode === 'work') showTaskReminder();
+            else if (targetMode === 'long') showBreakReminder();
+            return;
           }
         } catch (retryErr) {
           console.error('Failed to retry starting session:', retryErr);
@@ -442,7 +457,10 @@ export function StudyTimer() {
 
   // ── Stop/Save ────────────────────────────────────────────────────────────────
   const handleStopSession = async (silent = false) => {
-    if (!activeSession) return null;
+     if (savingRef.current || !activeSession) return null;
+    savingRef.current = true;
+    setSaving(true);
+
     const sessionId   = activeSession._id;
     const sessionMode = activeSession.mode || mode;
     setActiveSession(null);
@@ -451,7 +469,6 @@ export function StudyTimer() {
     setSessionNotes('');
 
     try {
-      setSaving(true);
       const res     = await stopStudySession(sessionId, sessionNotes);
       const stopped = res.data;
 
@@ -482,32 +499,65 @@ export function StudyTimer() {
       if (!silent) alert('Failed to stop session. Please try again.');
       return null;
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   // ── Session complete (timer hits 0) ──────────────────────────────────────────
   const handleSessionComplete = async () => {
-    playSound('complete');
-    const currentMode = activeSession?.mode || mode;
-    if (activeSession) await handleStopSession(true);
+    if (isCompletingRef.current) return;
+    isCompletingRef.current = true;
 
-    const newCount = todayWorkCountRef.current;
-    let nextMode;
+    try {
+      playSound('complete');
+      const currentMode = activeSession?.mode || mode;
+      const finishedTaskTitle = activeSession?.title || selectedTask;
+      
+      if (activeSession) {
+        await handleStopSession(true);
+      }
 
-    if (currentMode === 'work') {
-      const sessionsBeforeLong = Number(timerSettings.sessionsBeforeLong) || 4;
-      nextMode = newCount % sessionsBeforeLong === 0 ? 'long' : 'short';
-      if (nextMode === 'long') setTimeout(() => showBreakReminder(), 500);
-      setRunning(timerSettings.autoStartBreaks);
-    } else {
-      nextMode = 'work';
-      setRunning(timerSettings.autoStartSessions);
+      const currentFinishedFocusCount = todayWorkCountRef.current; 
+      let nextMode;
+
+      if (currentMode === 'work') {
+        if (finishedTaskTitle) {
+          const matchingTask = globalTasks.find(t => t.title === finishedTaskTitle);
+          if (matchingTask && !matchingTask.done && updateTask) {
+            updateTask(matchingTask.id, { done: true });
+          }
+        }
+
+        const sessionsBeforeLong = Number(timerSettings.sessionsBeforeLong) || 4;
+        
+        if (currentFinishedFocusCount > 0 && currentFinishedFocusCount % sessionsBeforeLong === 0) {
+          nextMode = 'long';
+          setTimeout(() => showBreakReminder(), 500);
+        } else {
+          nextMode = 'short';
+        }
+      } else {
+        nextMode = 'work';
+      }
+
+      setMode(nextMode);
+      setTimeLeft(modeConfig[nextMode].duration);
+      setRunning(false);
+
+      showSessionCompleteNotification(currentMode, nextMode);
+
+      const shouldAutoStart = (currentMode === 'work');
+
+      if (shouldAutoStart) {
+        setTimeout(() => {
+          handleStartSession(nextMode);
+        }, 1000); 
+      }
+
+    } finally {
+      isCompletingRef.current = false;
     }
-
-    setMode(nextMode);
-    setTimeLeft(modeConfig[nextMode].duration);
-    showSessionCompleteNotification(currentMode, nextMode);
   };
   onCompleteRef.current = handleSessionComplete;
 
@@ -775,7 +825,7 @@ export function StudyTimer() {
                 </button>
 
                 {!activeSession && !running ? (
-                  <button onClick={handleStartSession}
+                  <button onClick={() => handleStartSession(mode)}
                     disabled={loading || !selectedTask || selectedTask.trim() === ''}
                     className={`w-20 h-20 rounded-2xl flex items-center justify-center transition-all ${(!selectedTask || selectedTask.trim() === '') ? 'opacity-50 cursor-not-allowed' : 'text-white hover:scale-105 active:scale-95'}`}
                     style={{ 
@@ -834,6 +884,8 @@ export function StudyTimer() {
                 <div className="text-sm" style={{ fontWeight: 600, color: colors.text }}>
                   {todayWorkCount >= sessionGoal ? (
                     <span style={{ color: '#22c55e' }}>🎉 Daily goal reached! ({todayWorkCount}/{sessionGoal})</span>
+                  ) : mode !== 'work' ? (
+                    <span style={{ color: config.color, fontWeight: 700 }}>☕ Taking a {config.label.toLowerCase()}...</span>
                   ) : (
                     <>
                       Session {todayWorkCount + 1} of{' '}
@@ -856,8 +908,8 @@ export function StudyTimer() {
                   )}
                 </div>
                 <div className="text-xs mt-0.5" style={{ color: colors.textMuted }}>
-                  Long break every {timerSettings.sessionsBeforeLong} sessions
-                </div>
+  Long break every {timerSettings.sessionsBeforeLong} Focus sessions
+</div>
               </div>
               <div className="flex gap-1.5 flex-wrap">
                 {Array.from({ length: Math.min(sessionGoal, 12) }).map((_, i) => (
@@ -978,12 +1030,12 @@ export function StudyTimer() {
             <div className="rounded-2xl p-5" style={{ background: colors.card, border: `1px solid ${colors.border}` }}>
               <h3 className="text-sm mb-3" style={{ fontWeight: 700, color: colors.text }}>Session History</h3>
               <div className="flex flex-col gap-2">
-                {history.slice(0, 6).map((h, i) => (
+                {history.slice(0, 10).map((h, i) => (
                   <div key={h.id || i}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-xl group"
                     style={{ background: colors.card2 }}>
                     <div className="w-2 h-2 rounded-full shrink-0"
-                      style={{ background: h.type === 'work' ? accent.main : '#22c55e' }} />
+  style={{ background: h.mode === 'work' ? accent.main : (h.mode === 'long' ? '#06b6d4' : '#22c55e') }} />
                     <div className="flex-1 min-w-0">
                       <span className="text-xs truncate block" style={{ color: colors.text, fontWeight: 500 }}>
                         {h.label}
