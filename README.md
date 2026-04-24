@@ -16,3 +16,49 @@ A modern, frontend-focused web application designed to help students track their
 * **Styling:** CSS / Tailwind (if applicable)
 * **Icons:** Lucide-React
 * **Charts:** Recharts
+
+
+# AcadFlu API Endpoints
+
+## 1. Authentication
+- `POST   /api/auth/register`          
+- `POST   /api/auth/login`            
+- `GET    /api/auth/verify-email`      
+- `GET    /api/auth/google/url`        
+- `GET    /api/auth/google/callback`   
+- `POST   /api/auth/google`           
+- `POST   /api/auth/forgot-password`   
+- `POST   /api/auth/reset-password`    
+- `GET    /api/auth/me`                
+- `DELETE /api/auth/delete-account`   
+
+## 2. Settings
+- `GET    /api/settings`               
+- `PUT    /api/settings`               
+- `POST   /api/settings/change-password` 
+- `PATCH  /api/settings/avatar`        
+
+## 3. Tasks & Calendar
+- `GET    /api/tasks/`                 
+- `POST   /api/tasks/`                 
+- `GET    /api/tasks/:id`           
+- `PUT    /api/tasks/:id`              
+- `DELETE /api/tasks/:id`              
+- `PATCH  /api/tasks/:id/toggle`       
+- `PATCH  /api/tasks/:id/status`       
+- `POST   /api/tasks/:id/sync-calendar`
+- `GET    /api/tasks/calendar/events`  
+- `GET    /api/tasks/calendar/stats`  
+- `POST   /api/tasks/calendar/sync-from-calendar` 
+
+## 4. Study Timer
+- `POST   /api/study-timer/start`      
+- `GET    /api/study-timer/active`     
+- `PATCH  /api/study-timer/:id/pause`  
+- `PATCH  /api/study-timer/:id/resume` 
+- `PATCH  /api/study-timer/:id/stop`   
+- `PATCH  /api/study-timer/:id/abandon`
+- `GET    /api/study-timer`            
+- `GET    /api/study-timer/:id`        
+- `GET    /api/study-timer/stats`      
+- `DELETE /api/study-timer/:id`       
