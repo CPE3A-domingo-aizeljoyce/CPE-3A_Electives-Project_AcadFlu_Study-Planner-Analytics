@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "postinstall": "[ -d /home/u453211180/domains/acadflu.com/public_html/.builds/source/repository/FRONTEND ] && cd /home/u453211180/domains/acadflu.com/public_html/.builds/source/repository/FRONTEND && printf 'VITE_API_URL=https://acadflu.com\\nVITE_GOOGLE_CLIENT_ID=618908118163-es5uc0095d53s5vai1p950h3etmd653u.apps.googleusercontent.com\\n' > .env && npm install && npm run build && mkdir -p /home/u453211180/domains/acadflu.com/nodejs/dist && cp -r dist/* /home/u453211180/domains/acadflu.com/nodejs/dist/ || echo 'Skipping postinstall (not on Hostinger)'"
   },
   "keywords": [],
   "author": "",
